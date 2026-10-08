@@ -1,10 +1,20 @@
 package com.cliniq.backend.model;
 
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 
+import java.util.UUID;
+
+@Entity
+@Table(name = "department")
 public class Department {
+
     @Id
-    private int departmentID;
-    private String departmentName;
-    private String openingHours;
+    @GeneratedValue(strategy = GenerationType.AUTO)
+    private UUID departmentId;
+
+    @Column(nullable = false)
+    private String name;
+
+    @Column(name = "operating_hours", nullable = false)
+    private String operatingHours;
 }

@@ -1,8 +1,7 @@
 package com.cliniq.backend.enums;
 
-public enum StatusSlot {
-    DOCTOR,
-    NURSE,
-    ADMIN,
-    RECEPTIONIST
+public enum SlotStatus {
+    OPEN,
+    BOOKED,
+    BLOCKED
 }
