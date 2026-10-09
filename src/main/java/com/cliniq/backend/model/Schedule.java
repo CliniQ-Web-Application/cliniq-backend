@@ -11,7 +11,7 @@ import java.util.UUID;
 public class Schedule {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID slotId;
 
     @Column(name = "slot_date", nullable = false)
