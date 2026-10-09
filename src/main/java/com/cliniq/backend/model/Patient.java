@@ -12,10 +12,10 @@ public class Patient {
     private UUID patientID;
 
     @Column(nullable = false)
-    private String PatientName;
+    private String patientName;
 
     @Column(nullable = false)
-    private String PatientSurname;
+    private String patientSurname;
 
     @Column(nullable = false)
     private int nationalID;
@@ -28,8 +28,8 @@ public class Patient {
 
     public Patient(UUID patientID, String patientName, String patientSurname, int nationalID, String phone) {
         this.patientID = patientID;
-        PatientName = patientName;
-        PatientSurname = patientSurname;
+        this.patientName = patientName;
+        this.patientSurname = patientSurname;
         this.nationalID = nationalID;
         this.phone = phone;
     }
@@ -43,19 +43,19 @@ public class Patient {
     }
 
     public String getPatientName() {
-        return PatientName;
+        return patientName;
     }
 
     public void setPatientName(String patientName) {
-        PatientName = patientName;
+        this.patientName = patientName;
     }
 
     public String getPatientSurname() {
-        return PatientSurname;
+        return patientSurname;
     }
 
     public void setPatientSurname(String patientSurname) {
-        PatientSurname = patientSurname;
+        this.patientSurname = patientSurname;
     }
 
     public int getNationalID() {
