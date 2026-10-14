@@ -10,6 +10,9 @@ import java.util.UUID;
 @Table(name = "queue")
 public class Queue {
 
+    public Queue() {
+    }
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID queueId;
@@ -31,4 +34,16 @@ public class Queue {
     @JoinColumn(name = "department_id", nullable = false)
     private Department department;
 
+    public UUID getQueueId() { return queueId; }
+    public void setQueueId(UUID queueId) { this.queueId = queueId; }
+    public Integer getPosition() { return position; }
+    public void setPosition(Integer position) { this.position = position; }
+    public AvailabilityStatus getAvailabilityStatus() { return availabilityStatus; }
+    public void setAvailabilityStatus(AvailabilityStatus availabilityStatus) { this.availabilityStatus = availabilityStatus; }
+    public LocalTime getTimeStamp() { return timeStamp; }
+    public void setTimeStamp(LocalTime timeStamp) { this.timeStamp = timeStamp; }
+    public Appointment getAppointment() { return appointment; }
+    public void setAppointment(Appointment appointment) { this.appointment = appointment; }
+    public Department getDepartment() { return department; }
+    public void setDepartment(Department department) { this.department = department; }
 }

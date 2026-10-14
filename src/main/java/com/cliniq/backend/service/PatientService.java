@@ -15,7 +15,7 @@ public class PatientService {
         this.patientRepository = patientRepository;
     }
 
-    public List<Patient> getAllPatients(){
+    public List<Patient> getAllPatients() {
         return patientRepository.findAll();
     }
 
@@ -23,7 +23,7 @@ public class PatientService {
         return patientRepository.findById(id).orElseThrow(() -> new RuntimeException("Patient not found with id: " + id));
     }
 
-    public Patient createPatient(Patient patient){
+    public Patient createPatient(Patient patient) {
         return patientRepository.save(patient);
     }
 

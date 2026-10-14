@@ -10,6 +10,9 @@ import java.util.UUID;
 @Table(name = "schedule")
 public class Schedule {
 
+    public Schedule() {
+    }
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID slotId;
@@ -29,4 +32,17 @@ public class Schedule {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "staff_id", nullable = false)
     private Staff staff;
+
+    public UUID getSlotId() { return slotId; }
+    public void setSlotId(UUID slotId) { this.slotId = slotId; }
+    public LocalDate getSlotDate() { return slotDate; }
+    public void setSlotDate(LocalDate slotDate) { this.slotDate = slotDate; }
+    public LocalTime getStartTime() { return startTime; }
+    public void setStartTime(LocalTime startTime) { this.startTime = startTime; }
+    public LocalTime getEndTime() { return endTime; }
+    public void setEndTime(LocalTime endTime) { this.endTime = endTime; }
+    public SlotStatus getSlotStatus() { return slotStatus; }
+    public void setSlotStatus(SlotStatus slotStatus) { this.slotStatus = slotStatus; }
+    public Staff getStaff() { return staff; }
+    public void setStaff(Staff staff) { this.staff = staff; }
 }

@@ -8,6 +8,8 @@ import java.util.UUID;
 @Table(name = "department")
 public class Department {
 
+    public Department() {
+    }
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID departmentId;
@@ -17,4 +19,11 @@ public class Department {
 
     @Column(name = "operating_hours", nullable = false)
     private String operatingHours;
+
+    public UUID getDepartmentId() { return departmentId; }
+    public void setDepartmentId(UUID departmentId) { this.departmentId = departmentId; }
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+    public String getOperatingHours() { return operatingHours; }
+    public void setOperatingHours(String operatingHours) { this.operatingHours = operatingHours; }
 }

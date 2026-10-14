@@ -8,6 +8,9 @@ import java.util.UUID;
 @Table(name = "notification")
 public class Notification {
 
+    public Notification() {
+    }
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID notificationId;
@@ -31,4 +34,19 @@ public class Notification {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "appointment_id")
     private Appointment appointment;
+
+    public UUID getNotificationId() { return notificationId; }
+    public void setNotificationId(UUID notificationId) { this.notificationId = notificationId; }
+    public String getMessage() { return message; }
+    public void setMessage(String message) { this.message = message; }
+    public String getType() { return type; }
+    public void setType(String type) { this.type = type; }
+    public Boolean getIsRead() { return isRead; }
+    public void setIsRead(Boolean isRead) { this.isRead = isRead; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public Patient getPatient() { return patient; }
+    public void setPatient(Patient patient) { this.patient = patient; }
+    public Appointment getAppointment() { return appointment; }
+    public void setAppointment(Appointment appointment) { this.appointment = appointment; }
 }

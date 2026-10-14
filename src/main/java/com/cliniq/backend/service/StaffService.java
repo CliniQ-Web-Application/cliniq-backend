@@ -23,7 +23,7 @@ public class StaffService {
         return staffRepository.findById(id).orElseThrow(() -> new RuntimeException("Patient not found with id: " + id));
     }
 
-    public Staff createPatient(Staff staff){
+    public Staff createStaff(Staff staff){
         return staffRepository.save(staff);
     }
 
