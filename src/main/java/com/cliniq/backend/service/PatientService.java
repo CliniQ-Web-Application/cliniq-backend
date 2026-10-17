@@ -23,7 +23,13 @@ public class PatientService {
         return patientRepository.findById(id).orElseThrow(() -> new RuntimeException("Patient not found with id: " + id));
     }
 
-    public Patient createPatient(Patient patient) {
+    public Patient createPatient(Patient patient, UUID authUserId) {
+        if (patientRepository.findByAuthUserId(authUserId).isPresent()) {
+            throw new IllegalStateException(
+                    "A patient profile already exists for this account"
+            );
+        }
+        patient.setAuthUserId(authUserId);
         return patientRepository.save(patient);
     }
 
@@ -32,6 +38,7 @@ public class PatientService {
         patient.setPatientName(patientDetails.getPatientName());
         patient.setPatientSurname(patientDetails.getPatientSurname());
         patient.setPhone(patientDetails.getPhone());
+        patient.setPatientEmail(patientDetails.getPatientEmail());
         patient.setNationalID(patientDetails.getNationalID());
         return patientRepository.save(patient);
     }
