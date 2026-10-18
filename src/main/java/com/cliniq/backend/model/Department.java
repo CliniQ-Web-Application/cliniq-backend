@@ -8,8 +8,7 @@ import java.util.UUID;
 @Table(name = "department")
 public class Department {
 
-    public Department() {
-    }
+    public Department() {}
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID departmentId;

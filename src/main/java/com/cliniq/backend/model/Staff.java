@@ -13,8 +13,14 @@ public class Staff {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID staffId;
 
+    @Column (name = "auth_user_id", unique = true, nullable = false)
+    private UUID authUserId;
+
     @Column(nullable = false, length = 100)
-    private String name;
+    private String firstName;
+
+    @Column (nullable = false, length = 100)
+    private String lastName;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 50)
@@ -37,9 +43,11 @@ public class Staff {
     public Staff() {
     }
 
-    public Staff(UUID staffId, String name, StaffRole staffRole, AvailabilityStatus availabilityStatus, String email, Boolean isActive, Department department) {
+    public Staff(UUID staffId, UUID authUserId, String firstName, String lastName , StaffRole staffRole, AvailabilityStatus availabilityStatus, String email, Boolean isActive, Department department) {
         this.staffId = staffId;
-        this.name = name;
+        this.authUserId = authUserId;
+        this.firstName = firstName;
+        this.lastName = lastName;
         this.staffRole = staffRole;
         this.availabilityStatus = availabilityStatus;
         this.email = email;
@@ -55,12 +63,28 @@ public class Staff {
         this.staffId = staffId;
     }
 
-    public String getName() {
-        return name;
+    public UUID getAuthUserId() {
+        return authUserId;
     }
 
-    public void setName(String name) {
-        this.name = name;
+    public void setAuthUserId(UUID authUserId) {
+        this.authUserId = authUserId;
+    }
+
+    public String getFirstName() {
+        return firstName;
+    }
+
+    public void setFirstName(String firstName) {
+        this.firstName = firstName;
+    }
+
+    public String getLastName() {
+        return lastName;
+    }
+
+    public void setLastName(String lastName) {
+        this.lastName = lastName;
     }
 
     public StaffRole getStaffRole() {
