@@ -11,6 +11,9 @@ public class Patient {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID patientID;
 
+    @Column (name = "auth_user_id", unique = true, nullable = false)
+    private UUID authUserId;
+
     @Column(nullable = false)
     private String patientName;
 
@@ -18,7 +21,10 @@ public class Patient {
     private String patientSurname;
 
     @Column(nullable = false)
-    private int nationalID;
+    private String nationalID;
+
+    @Column (nullable = false, name = "email")
+    private String patientEmail;
 
     @Column
     private String phone;
@@ -26,11 +32,13 @@ public class Patient {
     public Patient() {
     }
 
-    public Patient(UUID patientID, String patientName, String patientSurname, int nationalID, String phone) {
+    public Patient(UUID patientID, UUID authUserId, String patientName, String patientSurname, String nationalID, String patientEmail, String phone) {
         this.patientID = patientID;
+        this.authUserId = authUserId;
         this.patientName = patientName;
         this.patientSurname = patientSurname;
         this.nationalID = nationalID;
+        this.patientEmail = patientEmail;
         this.phone = phone;
     }
 
@@ -40,6 +48,14 @@ public class Patient {
 
     public void setPatientID(UUID patientID) {
         this.patientID = patientID;
+    }
+
+    public UUID getAuthUserId() {
+        return authUserId;
+    }
+
+    public void setAuthUserId(UUID authUserId) {
+        this.authUserId = authUserId;
     }
 
     public String getPatientName() {
@@ -58,12 +74,20 @@ public class Patient {
         this.patientSurname = patientSurname;
     }
 
-    public int getNationalID() {
+    public String getNationalID() {
         return nationalID;
     }
 
-    public void setNationalID(int nationalID) {
+    public void setNationalID(String nationalID) {
         this.nationalID = nationalID;
+    }
+
+    public String getPatientEmail() {
+        return patientEmail;
+    }
+
+    public void setPatientEmail(String patientEmail) {
+        this.patientEmail = patientEmail;
     }
 
     public String getPhone() {

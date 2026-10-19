@@ -4,9 +4,12 @@ import com.cliniq.backend.model.Patient;
 import com.cliniq.backend.service.PatientService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @RestController
@@ -30,8 +33,9 @@ public class PatientController {
     }
 
     @PostMapping
-    public ResponseEntity<Patient> createPatient(@RequestBody Patient patient) {
-        Patient created = patientService.createPatient(patient);
+    public ResponseEntity<Patient> createPatient(@RequestBody Patient patient, @AuthenticationPrincipal Jwt jwt) {
+        UUID authUserId = UUID.fromString(Objects.requireNonNull(jwt.getSubject()));
+        Patient created = patientService.createPatient(patient, authUserId);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
