@@ -1,6 +1,10 @@
 package com.cliniq.backend.service;
 
 import com.cliniq.backend.model.Appointment;
+import com.cliniq.backend.enums.AppointmentStatus;
+import org.springframework.http.HttpStatus;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 import com.cliniq.backend.repository.AppointmentRepository;
 import org.springframework.stereotype.Service;
 
@@ -23,12 +27,20 @@ public class AppointmentService {
         return appointmentRepository.findById(id).orElseThrow(() -> new RuntimeException("Appointment not found with id: " + id));
     }
 
+    @Transactional
     public Appointment createAppointment(Appointment appointment) {
+        if (appointment.getAppointmentId() != null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Appointment ID must not be supplied");
+        }
+        rejectBookingMutation(appointment);
         return appointmentRepository.save(appointment);
     }
 
+    @Transactional
     public Appointment updateAppointment(UUID id, Appointment details) {
         Appointment appointment = getAppointmentById(id);
+        rejectBookingMutation(appointment);
+        rejectBookingMutation(details);
         appointment.setAppointmentStatus(details.getAppointmentStatus());
         appointment.setQrCode(details.getQrCode());
         appointment.setCheckInTime(details.getCheckInTime());
@@ -42,10 +54,18 @@ public class AppointmentService {
         return appointmentRepository.save(appointment);
     }
 
+    @Transactional
     public void deleteAppointment(UUID id) {
-        if (!appointmentRepository.existsById(id)) {
-            throw new RuntimeException("Appointment not found with id: " + id);
+        Appointment appointment = getAppointmentById(id);
+        if (appointment.getSlot() != null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Slot-linked bookings require a booking lifecycle operation");
         }
-        appointmentRepository.deleteById(id);
+        appointmentRepository.delete(appointment);
+    }
+
+    private void rejectBookingMutation(Appointment appointment) {
+        if (appointment.getSlot() != null || appointment.getAppointmentStatus() == AppointmentStatus.BOOKED) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Use the booking API for reservations");
+        }
     }
 }
