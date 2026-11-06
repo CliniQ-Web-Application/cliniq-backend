@@ -5,6 +5,8 @@ import com.cliniq.backend.service.ScheduleService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.util.List;
 import java.util.UUID;
@@ -29,8 +31,8 @@ public class ScheduleController {
     }
 
     @PostMapping
-    public ResponseEntity<Schedule> create(@RequestBody Schedule schedule) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(scheduleService.createSchedule(schedule));
+    public ResponseEntity<Schedule> create(@RequestBody Schedule schedule, @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(scheduleService.createForStaff(jwt, schedule));
     }
 
     @PutMapping("/{id}")

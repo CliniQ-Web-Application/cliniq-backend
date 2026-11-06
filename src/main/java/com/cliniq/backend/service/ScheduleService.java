@@ -7,7 +7,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import com.cliniq.backend.repository.ScheduleRepository;
+import com.cliniq.backend.repository.StaffRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.util.List;
 import java.util.UUID;
@@ -17,10 +19,29 @@ public class ScheduleService {
     private final ScheduleRepository scheduleRepository;
 
     private final AppointmentRepository appointmentRepository;
+    private final StaffRepository staffRepository;
 
     public ScheduleService(ScheduleRepository scheduleRepository, AppointmentRepository appointmentRepository) {
+        this(scheduleRepository, appointmentRepository, null);
+    }
+
+    public ScheduleService(ScheduleRepository scheduleRepository, AppointmentRepository appointmentRepository,
+                           StaffRepository staffRepository) {
         this.scheduleRepository = scheduleRepository;
         this.appointmentRepository = appointmentRepository;
+        this.staffRepository = staffRepository;
+    }
+
+    @Transactional
+    public Schedule createForStaff(Jwt jwt, Schedule schedule) {
+        UUID userId = AccessPolicy.subject(jwt);
+        var staff = staffRepository.findByAuthUserId(userId)
+                .filter(profile -> Boolean.TRUE.equals(profile.getActive()))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "An active staff account is required"));
+        schedule.setSlotId(null);
+        schedule.setSlotStatus(SlotStatus.OPEN);
+        schedule.setStaff(staff);
+        return createSchedule(schedule);
     }
 
     public List<Schedule> getAllSchedules() {

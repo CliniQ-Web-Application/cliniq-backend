@@ -11,6 +11,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
+import com.cliniq.backend.dto.AvailabilityUpdateRequest;
+import com.cliniq.backend.service.OperationalService;
 
 import java.util.List;
 import java.util.Map;
@@ -22,10 +24,12 @@ import java.util.UUID;
 public class StaffController {
     private final StaffService staffService;
     private final StaffRepository staffRepository;
+    private final OperationalService operationalService;
 
-    public StaffController(StaffService staffService, StaffRepository staffRepository) {
+    public StaffController(StaffService staffService, StaffRepository staffRepository, OperationalService operationalService) {
         this.staffService = staffService;
         this.staffRepository = staffRepository;
+        this.operationalService = operationalService;
     }
 
     @GetMapping
@@ -57,9 +61,10 @@ public class StaffController {
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("message", "Staff account created successfully.", "staffId", created.getStaffId()));
     }
 
-    @PostMapping
-    public ResponseEntity<Staff> create(@RequestBody Staff staff) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(staffService.createStaff(staff));
+    @PatchMapping("/me/availability")
+    public Staff updateAvailability(@AuthenticationPrincipal Jwt jwt,
+                                    @Valid @RequestBody AvailabilityUpdateRequest request) {
+        return operationalService.updateAvailability(jwt, request);
     }
 
     @PutMapping("/{id}")

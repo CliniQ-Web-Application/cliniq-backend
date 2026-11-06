@@ -23,10 +23,17 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/", "/error").permitAll()
                         .requestMatchers("/api/bookings/**", "/api/patients/me").authenticated()
+                        .requestMatchers("/api/appointments/*/check-in", "/api/appointments/*/cancel",
+                                "/api/appointments/*/queue-position").authenticated()
+                        .requestMatchers("/api/appointments/walk-in", "/api/appointments/*/complete",
+                                "/api/queues/**", "/api/staff/me/**")
+                        .access((authentication, context) -> new AuthorizationDecision(accessPolicy.isStaff(authentication.get(), false)))
+                        .requestMatchers("/api/appointments/*/check-in").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/departments", "/api/departments/**").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/staff", "/api/staff/**")
                         .access((authentication, context) -> new AuthorizationDecision(accessPolicy.isStaff(authentication.get(), false)))
-                        .requestMatchers("/api/staff", "/api/staff/**", "/api/departments", "/api/departments/**")
+                        .requestMatchers("/api/staff/register", "/api/staff", "/api/staff/**",
+                                "/api/departments", "/api/departments/**")
                         .access((authentication, context) -> new AuthorizationDecision(accessPolicy.isStaff(authentication.get(), true)))
                         .requestMatchers("/api/appointments", "/api/appointments/**", "/api/schedules", "/api/schedules/**")
                         .access((authentication, context) -> new AuthorizationDecision(accessPolicy.isStaff(authentication.get(), false)))
