@@ -6,6 +6,7 @@ import com.cliniq.backend.model.Appointment;
 import com.cliniq.backend.model.Schedule;
 import com.cliniq.backend.repository.AppointmentRepository;
 import com.cliniq.backend.repository.ScheduleRepository;
+import com.cliniq.backend.repository.StaffRepository;
 import com.cliniq.backend.service.AppointmentService;
 import com.cliniq.backend.service.ScheduleService;
 import org.junit.jupiter.api.Test;
@@ -24,7 +25,8 @@ class BookingLegacyGuardTest {
     private final AppointmentRepository appointments = mock(AppointmentRepository.class);
     private final ScheduleRepository schedules = mock(ScheduleRepository.class);
     private final AppointmentService appointmentService = new AppointmentService(appointments);
-    private final ScheduleService scheduleService = new ScheduleService(schedules, appointments);
+    private final StaffRepository staff = mock(StaffRepository.class);
+    private final ScheduleService scheduleService = new ScheduleService(schedules, appointments, staff);
 
     @Test
     void legacyCreationCannotMergeExistingAppointmentOrManufactureBooking() {

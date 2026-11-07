@@ -24,7 +24,6 @@ public interface ScheduleRepository extends JpaRepository<Schedule, UUID> {
             select s from Schedule s
             join fetch s.staff st join fetch st.department
             where s.slotStatus = :status and s.slotDate >= :today
-              and not exists (select a.appointmentId from Appointment a where a.slot = s)
             order by s.slotDate, s.startTime, s.slotId
             """)
     List<Schedule> findBookingCandidates(@Param("status") SlotStatus status, @Param("today") LocalDate today);

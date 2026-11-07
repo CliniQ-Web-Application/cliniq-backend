@@ -88,7 +88,7 @@ class BookingServiceTest {
         order.verify(policy).requirePatient(userId);
         order.verify(patients).findByAuthUserId(userId);
         order.verify(schedules).findByIdForUpdate(slot.getSlotId());
-        order.verify(appointments).existsBySlot_SlotId(slot.getSlotId());
+        order.verify(appointments).countBySlot_SlotId(slot.getSlotId());
         order.verify(appointments).saveAndFlush(any());
         order.verify(schedules).saveAndFlush(slot);
         verify(schedules, never()).findById(any());
@@ -157,7 +157,7 @@ class BookingServiceTest {
 
     @Test
     void rejectsAlreadyLinkedOpenSlot() {
-        when(appointments.existsBySlot_SlotId(slot.getSlotId())).thenReturn(true);
+        when(appointments.countBySlot_SlotId(slot.getSlotId())).thenReturn(1L);
         assertEquals(HttpStatus.CONFLICT, assertThrows(ResponseStatusException.class,
                 () -> service.book(userId, slot.getSlotId())).getStatusCode());
         verify(appointments, never()).saveAndFlush(any());

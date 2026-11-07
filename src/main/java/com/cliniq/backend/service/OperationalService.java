@@ -106,7 +106,7 @@ public class OperationalService {
         Queue next = waiting.stream()
                 .sorted((left, right) -> {
                     int priority = right.getAppointment().getPriority().compareTo(left.getAppointment().getPriority());
-                    return priority != 0 ? priority : Integer.compare(left.getPosition(), right.getPosition());
+                    return priority != 0 ? priority : bookingMoment(left.getAppointment()).compareTo(bookingMoment(right.getAppointment()));
                 })
                 .findFirst()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No patients are waiting."));
@@ -151,6 +151,13 @@ public class OperationalService {
         }
         return queues.findByAppointment(appointment)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "This appointment is not in a queue."));
+    }
+
+    // Queue order is booking time, falling back to check-in/creation for records without a bookedAt (e.g. walk-ins).
+    private static LocalDateTime bookingMoment(Appointment appointment) {
+        if (appointment.getBookedAt() != null) return appointment.getBookedAt();
+        if (appointment.getCheckInTime() != null) return appointment.getCheckInTime();
+        return appointment.getCreatedAt();
     }
 
     private Queue createQueue(Appointment appointment, Department department) {

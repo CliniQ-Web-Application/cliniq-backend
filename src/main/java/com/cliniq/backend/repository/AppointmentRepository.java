@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -13,6 +14,15 @@ import java.util.UUID;
 @Repository
 public interface AppointmentRepository extends JpaRepository<Appointment, UUID> {
     boolean existsBySlot_SlotId(UUID slotId);
+
+    long countBySlot_SlotId(UUID slotId);
+
+    @Query("""
+            select a.slot.slotId, count(a) from Appointment a
+            where a.slot.slotId in :ids
+            group by a.slot.slotId
+            """)
+    List<Object[]> countBySlotIds(@Param("ids") Collection<UUID> ids);
 
     @Query("""
             select a from Appointment a join fetch a.slot s

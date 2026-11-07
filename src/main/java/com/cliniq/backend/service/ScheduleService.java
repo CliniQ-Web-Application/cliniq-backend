@@ -21,10 +21,6 @@ public class ScheduleService {
     private final AppointmentRepository appointmentRepository;
     private final StaffRepository staffRepository;
 
-    public ScheduleService(ScheduleRepository scheduleRepository, AppointmentRepository appointmentRepository) {
-        this(scheduleRepository, appointmentRepository, null);
-    }
-
     public ScheduleService(ScheduleRepository scheduleRepository, AppointmentRepository appointmentRepository,
                            StaffRepository staffRepository) {
         this.scheduleRepository = scheduleRepository;
@@ -38,6 +34,10 @@ public class ScheduleService {
         var staff = staffRepository.findByAuthUserId(userId)
                 .filter(profile -> Boolean.TRUE.equals(profile.getActive()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "An active staff account is required"));
+        // A window without an explicit capacity keeps the legacy one-appointment behaviour (null -> 1).
+        if (schedule.getCapacity() != null && schedule.getCapacity() < 1) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Capacity must be at least 1");
+        }
         schedule.setSlotId(null);
         schedule.setSlotStatus(SlotStatus.OPEN);
         schedule.setStaff(staff);

@@ -7,7 +7,8 @@ import java.time.LocalTime;
 import java.util.UUID;
 
 public record BookingAvailability(UUID slotId, LocalDate slotDate, LocalTime startTime,
-                                  LocalTime endTime, SlotStatus slotStatus, Doctor staff) {
+                                  LocalTime endTime, SlotStatus slotStatus, Doctor staff,
+                                  int capacity, long bookedCount) {
     public record Doctor(UUID staffId, String firstName, String lastName, StaffRole staffRole,
                          boolean active, Department department) { }
     public record Department(UUID departmentId, String name) { }

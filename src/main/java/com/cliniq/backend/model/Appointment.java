@@ -51,8 +51,8 @@ public class Appointment {
     @JoinColumn (name = "staff_id", nullable = false)
     private Staff staff;
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "slot_id", unique = true,
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "slot_id",
             foreignKey = @ForeignKey(name = "fk_appointment_slot"))
     private Schedule slot;
 

@@ -22,7 +22,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -46,8 +48,20 @@ public class BookingService {
     public List<BookingAvailability> availability(UUID authUserId) {
         accessPolicy.requirePatient(authUserId);
         Instant now = clock.instant();
-        return schedules.findBookingCandidates(SlotStatus.OPEN, LocalDate.ofInstant(now, clock.getZone()))
-                .stream().filter(slot -> isBookable(slot, now)).map(this::availabilityResponse).toList();
+        List<Schedule> candidates = schedules.findBookingCandidates(SlotStatus.OPEN, LocalDate.ofInstant(now, clock.getZone()))
+                .stream().filter(slot -> isBookable(slot, now)).toList();
+        if (candidates.isEmpty()) {
+            return List.of();
+        }
+        // One grouped query supplies the counts used both for display and for hiding full windows.
+        Map<UUID, Long> counts = new HashMap<>();
+        for (Object[] row : appointments.countBySlotIds(candidates.stream().map(Schedule::getSlotId).toList())) {
+            counts.put((UUID) row[0], ((Number) row[1]).longValue());
+        }
+        return candidates.stream()
+                .filter(slot -> counts.getOrDefault(slot.getSlotId(), 0L) < slot.effectiveCapacity())
+                .map(slot -> availabilityResponse(slot, counts.getOrDefault(slot.getSlotId(), 0L)))
+                .toList();
     }
 
     @Transactional
@@ -60,7 +74,8 @@ public class BookingService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Slot not found"));
         // Read time only after acquiring the lock: a waiter may cross the slot start time.
         Instant now = clock.instant();
-        if (!isBookable(slot, now) || appointments.existsBySlot_SlotId(slotId)) {
+        long booked = appointments.countBySlot_SlotId(slot.getSlotId());
+        if (!isBookable(slot, now) || booked >= slot.effectiveCapacity()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Slot is no longer available for booking");
         }
         Appointment appointment = new Appointment();
@@ -72,8 +87,11 @@ public class BookingService {
         appointment.setCheckInTime(null);
         appointment.setBookedAt(LocalDateTime.ofInstant(now, clock.getZone()));
         appointments.saveAndFlush(appointment);
-        slot.setSlotStatus(SlotStatus.BOOKED);
-        schedules.saveAndFlush(slot);
+        // A window flips to BOOKED only once its capacity is reached, which hides it from availability.
+        if (booked + 1 >= slot.effectiveCapacity()) {
+            slot.setSlotStatus(SlotStatus.BOOKED);
+            schedules.saveAndFlush(slot);
+        }
         return response(appointment);
     }
 
@@ -113,13 +131,14 @@ public class BookingService {
                 && start.toInstant(offsets.getFirst()).isAfter(now);
     }
 
-    private BookingAvailability availabilityResponse(Schedule slot) {
+    private BookingAvailability availabilityResponse(Schedule slot, long bookedCount) {
         Staff doctor = slot.getStaff();
         var department = doctor.getDepartment();
         return new BookingAvailability(slot.getSlotId(), slot.getSlotDate(), slot.getStartTime(), slot.getEndTime(),
                 slot.getSlotStatus(), new BookingAvailability.Doctor(doctor.getStaffId(), doctor.getFirstName(),
                 doctor.getLastName(), doctor.getStaffRole(), true,
-                new BookingAvailability.Department(department.getDepartmentId(), department.getName())));
+                new BookingAvailability.Department(department.getDepartmentId(), department.getName())),
+                slot.effectiveCapacity(), bookedCount);
     }
 
     private BookingResponse response(Appointment appointment) {
