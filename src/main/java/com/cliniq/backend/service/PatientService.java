@@ -3,6 +3,9 @@ package com.cliniq.backend.service;
 import com.cliniq.backend.model.Patient;
 import com.cliniq.backend.repository.PatientRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -23,11 +26,18 @@ public class PatientService {
         return patientRepository.findById(id).orElseThrow(() -> new RuntimeException("Patient not found with id: " + id));
     }
 
+    public Patient getOwnProfile(UUID authUserId) {
+        return patientRepository.findByAuthUserId(authUserId).orElseThrow(() ->
+                new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient profile not found"));
+    }
+
+    @Transactional
     public Patient createPatient(Patient patient, UUID authUserId) {
+        if (patient.getPatientID() != null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Patient ID must not be supplied");
+        }
         if (patientRepository.findByAuthUserId(authUserId).isPresent()) {
-            throw new IllegalStateException(
-                    "A patient profile already exists for this account"
-            );
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "A patient profile already exists for this account");
         }
         patient.setAuthUserId(authUserId);
         return patientRepository.save(patient);

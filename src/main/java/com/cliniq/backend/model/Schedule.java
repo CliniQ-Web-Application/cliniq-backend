@@ -33,6 +33,10 @@ public class Schedule {
     @JoinColumn(name = "staff_id", nullable = false)
     private Staff staff;
 
+    // Null means the legacy behaviour of one appointment per slot.
+    @Column(name = "capacity")
+    private Integer capacity;
+
     public UUID getSlotId() { return slotId; }
     public void setSlotId(UUID slotId) { this.slotId = slotId; }
     public LocalDate getSlotDate() { return slotDate; }
@@ -45,4 +49,10 @@ public class Schedule {
     public void setSlotStatus(SlotStatus slotStatus) { this.slotStatus = slotStatus; }
     public Staff getStaff() { return staff; }
     public void setStaff(Staff staff) { this.staff = staff; }
+
+    public Integer getCapacity() { return capacity; }
+    public void setCapacity(Integer capacity) { this.capacity = capacity; }
+
+    // The effective booking limit; null means the legacy single-appointment behaviour.
+    public int effectiveCapacity() { return capacity == null ? 1 : capacity; }
 }

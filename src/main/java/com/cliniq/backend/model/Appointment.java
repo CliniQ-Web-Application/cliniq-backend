@@ -22,7 +22,7 @@ public class Appointment {
     @Column
     private String qrCode;
 
-    @Column (nullable = false)
+    @Column
     private LocalDateTime checkInTime;
 
     @Column (nullable = false)
@@ -50,6 +50,14 @@ public class Appointment {
     @ManyToOne
     @JoinColumn (name = "staff_id", nullable = false)
     private Staff staff;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "slot_id",
+            foreignKey = @ForeignKey(name = "fk_appointment_slot"))
+    private Schedule slot;
+
+    public Schedule getSlot() { return slot; }
+    public void setSlot(Schedule slot) { this.slot = slot; }
 
     @PrePersist
     protected void onCreate() {
