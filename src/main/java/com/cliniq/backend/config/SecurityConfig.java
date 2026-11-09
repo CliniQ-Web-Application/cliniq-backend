@@ -24,7 +24,7 @@ public class SecurityConfig {
                         .requestMatchers("/", "/error").permitAll()
                         .requestMatchers("/api/bookings/**", "/api/patients/me").authenticated()
                         .requestMatchers("/api/appointments/*/check-in", "/api/appointments/*/cancel",
-                                "/api/appointments/*/queue-position").authenticated()
+                                "/api/appointments/*/queue-position", "/api/appointments/*/qr").authenticated()
                         .requestMatchers("/api/appointments/walk-in", "/api/appointments/*/complete",
                                 "/api/queues/**", "/api/staff/me/**")
                         .access((authentication, context) -> new AuthorizationDecision(accessPolicy.isStaff(authentication.get(), false)))

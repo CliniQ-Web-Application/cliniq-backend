@@ -69,3 +69,7 @@ Use JDK 21 and cached Maven/dependencies:
 ```
 
 These focused tests do not start Spring Boot, load deployment configuration, access a backend service, or contact a database. They verify booking ownership/eligibility, locks, transaction metadata, write ordering/failures, DTO input/output, controller responses, profile ownership, HTTP authorization boundaries, and legacy mutation guards. They do not prove PostgreSQL concurrent locking/rollback behavior: run a separate disposable-database integration check before deployment (two simultaneous bookings must produce exactly one booking and one 409; a forced second-write failure must persist neither write). No dependency was added solely for testing.
+
+## Check-in QR codes
+
+`GET /api/appointments/{id}/qr` returns a 300x300 PNG QR encoding `<app-base-url>/check-in?id=<appointmentId>` (the shared check-in page in the frontend). The QR is generated on demand and never stored. Callers must be the appointment's patient owner or an active staff account; otherwise 403 (404 for unknown IDs, 401 when signed out). `cliniq.app-base-url` (or `CLINIQ_APP_BASE_URL`, default `http://localhost:3000`) sets the public frontend origin used in the encoded link — set it when deploying somewhere other than localhost.
