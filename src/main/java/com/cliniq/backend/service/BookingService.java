@@ -35,14 +35,16 @@ public class BookingService {
     private final PatientRepository patients;
     private final AccessPolicy accessPolicy;
     private final Clock clock;
+    private final NotificationService notificationService;
 
     public BookingService(ScheduleRepository schedules, AppointmentRepository appointments,
-                          PatientRepository patients, AccessPolicy accessPolicy, Clock clock) {
+                          PatientRepository patients, AccessPolicy accessPolicy, Clock clock, NotificationService notificationService) {
         this.schedules = schedules;
         this.appointments = appointments;
         this.patients = patients;
         this.accessPolicy = accessPolicy;
         this.clock = clock;
+        this.notificationService = notificationService;
     }
 
     public List<BookingAvailability> availability(UUID authUserId) {
@@ -92,6 +94,10 @@ public class BookingService {
             slot.setSlotStatus(SlotStatus.BOOKED);
             schedules.saveAndFlush(slot);
         }
+
+        String message = patient.getPatientName() + " " + patient.getPatientSurname()
+                + " booked " + slot.getSlotDate() + " at " + slot.getStartTime();
+        notificationService.notifyStaff(slot.getStaff(), appointment, "BOOKING_CREATED", message);
         return response(appointment);
     }
 
