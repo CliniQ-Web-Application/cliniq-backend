@@ -35,16 +35,18 @@ public class OperationalService {
     private final PatientRepository patients;
     private final DepartmentRepository departments;
     private final AccessPolicy accessPolicy;
+    private final NotificationService notificationService;
 
     public OperationalService(AppointmentRepository appointments, QueueRepository queues,
                               StaffRepository staff, PatientRepository patients,
-                              DepartmentRepository departments, AccessPolicy accessPolicy) {
+                              DepartmentRepository departments, AccessPolicy accessPolicy, NotificationService notificationService) {
         this.appointments = appointments;
         this.queues = queues;
         this.staff = staff;
         this.patients = patients;
         this.departments = departments;
         this.accessPolicy = accessPolicy;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -113,6 +115,16 @@ public class OperationalService {
         Appointment appointment = next.getAppointment();
         appointment.setAppointmentStatus(AppointmentStatus.INCONSULTATION);
         appointment.setCalledTime(LocalDateTime.now());
+
+        com.cliniq.backend.model.Notification notification = new com.cliniq.backend.model.Notification();
+        notification.setPatient(appointment.getPatient());
+        notification.setAppointment(appointment);
+        notification.setMessage("You are next! Please proceed to the consultation room");
+        notification.setType("QUEUE_Called");
+        notification.setIsRead(false);
+        notification.setCreatedAt(LocalDateTime.now());
+        notificationService.createNotification(notification);
+
         return appointments.save(appointment);
     }
 
