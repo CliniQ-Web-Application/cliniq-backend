@@ -18,6 +18,13 @@ public class NotificationService {
     private final StaffRepository staffRepository;
     private final PatientRepository patientRepository;
 
+    public List<Notification> getMyNotifications(UUID authUserId) {
+        if (staffRepository.findByAuthUserId(authUserId).isPresent()) {
+            return notificationRepository.findByStaff_AuthUserIdOrderByCreatedAtDesc(authUserId);
+        }
+        return notificationRepository.findByPatient_AuthUserIdOrderByCreatedAtDesc(authUserId);
+    }
+
     public NotificationService(PatientRepository patientRepository, StaffRepository staffRepository, NotificationRepository notificationRepository) {
         this.patientRepository = patientRepository;
         this.staffRepository = staffRepository;
