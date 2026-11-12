@@ -35,14 +35,16 @@ public class BookingService {
     private final PatientRepository patients;
     private final AccessPolicy accessPolicy;
     private final Clock clock;
+    private final NotificationService notificationService;
 
     public BookingService(ScheduleRepository schedules, AppointmentRepository appointments,
-                          PatientRepository patients, AccessPolicy accessPolicy, Clock clock) {
+                          PatientRepository patients, AccessPolicy accessPolicy, Clock clock, NotificationService notificationService) {
         this.schedules = schedules;
         this.appointments = appointments;
         this.patients = patients;
         this.accessPolicy = accessPolicy;
         this.clock = clock;
+        this.notificationService = notificationService;
     }
 
     public List<BookingAvailability> availability(UUID authUserId) {
@@ -92,6 +94,13 @@ public class BookingService {
             slot.setSlotStatus(SlotStatus.BOOKED);
             schedules.saveAndFlush(slot);
         }
+        com.cliniq.backend.model.Notification staffNotification = new com.cliniq.backend.model.Notification();
+        staffNotification.setAppointment(appointment);
+        staffNotification.setMessage("A neew appointment has been booked: " + patient.getPatientName());
+        staffNotification.setType("NEW_BOOKING");
+        staffNotification.setIsRead(false);
+        staffNotification.setCreatedAt(LocalDateTime.now());
+        notificationService.createNotification(staffNotification);
         return response(appointment);
     }
 
