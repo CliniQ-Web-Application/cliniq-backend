@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import com.cliniq.backend.repository.ScheduleRepository;
 import com.cliniq.backend.repository.StaffRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.security.oauth2.jwt.Jwt;
 
@@ -21,6 +22,11 @@ public class ScheduleService {
     private final AppointmentRepository appointmentRepository;
     private final StaffRepository staffRepository;
 
+    public ScheduleService(ScheduleRepository scheduleRepository, AppointmentRepository appointmentRepository) {
+        this(scheduleRepository, appointmentRepository, null);
+    }
+
+    @Autowired
     public ScheduleService(ScheduleRepository scheduleRepository, AppointmentRepository appointmentRepository,
                            StaffRepository staffRepository) {
         this.scheduleRepository = scheduleRepository;

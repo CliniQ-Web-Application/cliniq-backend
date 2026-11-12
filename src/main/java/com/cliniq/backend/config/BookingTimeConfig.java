@@ -10,7 +10,7 @@ import java.time.ZoneId;
 @Configuration
 public class BookingTimeConfig {
     @Bean
-    public Clock bookingClock(@Value("${cliniq.booking.zone-id:UTC}") String zoneId) {
+    public Clock bookingClock(@Value("${cliniq.booking.zone-id:Africa/Gaborone}") String zoneId) {
         return Clock.system(ZoneId.of(zoneId));
     }
 }

@@ -13,6 +13,15 @@ import java.util.UUID;
 
 @Repository
 public interface AppointmentRepository extends JpaRepository<Appointment, UUID> {
+    @Query("""
+            select distinct a from Appointment a
+            join fetch a.staff st
+            left join fetch st.department
+            left join fetch a.patient
+            left join fetch a.slot
+            """)
+    List<Appointment> findAllForAnalytics();
+
     boolean existsBySlot_SlotId(UUID slotId);
 
     long countBySlot_SlotId(UUID slotId);
