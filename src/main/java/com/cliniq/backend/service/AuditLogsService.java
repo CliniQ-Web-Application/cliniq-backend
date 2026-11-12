@@ -23,25 +23,4 @@ public class AuditLogsService {
         return auditLogsRepository.findById(id).orElseThrow(() -> new RuntimeException("AuditLog not found with id: " + id));
     }
 
-    public AuditLogs createAuditLog(AuditLogs auditLog) {
-        return auditLogsRepository.save(auditLog);
-    }
-
-    public AuditLogs updateAuditLog(UUID id, AuditLogs details) {
-        AuditLogs auditLog = getAuditLogById(id);
-        auditLog.setAction(details.getAction());
-        auditLog.setReason(details.getReason());
-        auditLog.setEntityName(details.getEntityName());
-        auditLog.setEntityId(details.getEntityId());
-        auditLog.setCreatedAt(details.getCreatedAt());
-        auditLog.setStaff(details.getStaff());
-        return auditLogsRepository.save(auditLog);
-    }
-
-    public void deleteAuditLog(UUID id) {
-        if (!auditLogsRepository.existsById(id)) {
-            throw new RuntimeException("AuditLog not found with id: " + id);
-        }
-        auditLogsRepository.deleteById(id);
-    }
 }

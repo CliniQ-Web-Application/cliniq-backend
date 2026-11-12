@@ -41,7 +41,7 @@ backend; application endpoint checks cannot secure direct database APIs.
 
 ## Time and lifecycle
 
-Configure `cliniq.booking.zone-id=UTC` (default), or its environment form `CLINIQ_BOOKING_ZONE_ID=UTC`. Set an explicit IANA zone when the clinic operates in another timezone; the server's locale/timezone is not used. An invalid zone fails startup. `BookingTimeConfig` supplies an injectable clinic-zone `Clock` for deterministic tests.
+Configure `cliniq.booking.zone-id=Africa/Gaborone` (default), or its environment form `CLINIQ_BOOKING_ZONE_ID=Africa/Gaborone`. Set an explicit IANA zone when the clinic operates in another timezone; the server's locale/timezone is not used. An invalid zone fails startup. `BookingTimeConfig` supplies an injectable clinic-zone `Clock` for deterministic tests.
 
 `slotDate`, `startTime`, and `endTime` are clinic-local schedule values. `bookedAt` is the actual reservation timestamp expressed in that same clinic zone, **not** the scheduled appointment time. Past starts, end <= start, and nonexistent/ambiguous daylight-saving transition times are not bookable. The current API uses local date/time strings without offsets; clients must interpret them in the configured clinic zone.
 

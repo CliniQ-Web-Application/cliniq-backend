@@ -5,6 +5,7 @@ import com.cliniq.backend.enums.StaffRole;
 import com.cliniq.backend.model.Staff;
 import com.cliniq.backend.repository.StaffRepository;
 import com.cliniq.backend.service.StaffService;
+import com.cliniq.backend.service.AccessPolicy;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,7 +17,6 @@ import com.cliniq.backend.service.OperationalService;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 
 @RestController
@@ -25,11 +25,14 @@ public class StaffController {
     private final StaffService staffService;
     private final StaffRepository staffRepository;
     private final OperationalService operationalService;
+    private final AccessPolicy accessPolicy;
 
-    public StaffController(StaffService staffService, StaffRepository staffRepository, OperationalService operationalService) {
+    public StaffController(StaffService staffService, StaffRepository staffRepository, OperationalService operationalService,
+                           AccessPolicy accessPolicy) {
         this.staffService = staffService;
         this.staffRepository = staffRepository;
         this.operationalService = operationalService;
+        this.accessPolicy = accessPolicy;
     }
 
     @GetMapping
@@ -47,14 +50,7 @@ public class StaffController {
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody StaffRegistrationRequest request) {
 
-        UUID authUserId = UUID.fromString(Objects.requireNonNull(jwt.getSubject()));
-
-        Staff currentUser = staffRepository.findByAuthUserId(authUserId).orElse(null);
-
-        assert currentUser != null;
-        if (currentUser.getStaffRole() != StaffRole.ADMIN) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "Only administrators can register staff."));
-        }
+        accessPolicy.requireAdmin(jwt);
 
         Staff created = staffService.registerStaff(request);
 

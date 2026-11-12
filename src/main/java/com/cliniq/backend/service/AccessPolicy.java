@@ -43,6 +43,16 @@ public class AccessPolicy {
                 .isPresent();
     }
 
+    public UUID requireAdmin(Jwt jwt) {
+        UUID userId = subject(jwt);
+        staff.findByAuthUserId(userId)
+                .filter(profile -> Boolean.TRUE.equals(profile.getActive()))
+                .filter(profile -> profile.getStaffRole() == StaffRole.ADMIN)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.FORBIDDEN, "Only active administrators may perform this operation"));
+        return userId;
+    }
+
     public static UUID subject(Jwt jwt) {
         String sub = jwt == null ? null : jwt.getSubject();
         if (sub == null || !sub.matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")) {

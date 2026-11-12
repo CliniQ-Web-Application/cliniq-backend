@@ -32,6 +32,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/departments", "/api/departments/**").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/staff", "/api/staff/**")
                         .access((authentication, context) -> new AuthorizationDecision(accessPolicy.isStaff(authentication.get(), false)))
+                        .requestMatchers("/api/audit-logs", "/api/audit-logs/**")
+                        .access((authentication, context) -> new AuthorizationDecision(accessPolicy.isStaff(authentication.get(), true)))
+                        .requestMatchers("/api/analytics", "/api/analytics/**")
+                        .access((authentication, context) -> new AuthorizationDecision(accessPolicy.isStaff(authentication.get(), true)))
                         .requestMatchers("/api/staff/register", "/api/staff", "/api/staff/**",
                                 "/api/departments", "/api/departments/**")
                         .access((authentication, context) -> new AuthorizationDecision(accessPolicy.isStaff(authentication.get(), true)))
