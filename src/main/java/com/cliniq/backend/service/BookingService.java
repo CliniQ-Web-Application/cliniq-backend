@@ -94,10 +94,13 @@ public class BookingService {
             slot.setSlotStatus(SlotStatus.BOOKED);
             schedules.saveAndFlush(slot);
         }
-
-        String message = patient.getPatientName() + " " + patient.getPatientSurname()
-                + " booked " + slot.getSlotDate() + " at " + slot.getStartTime();
-        notificationService.notifyStaff(slot.getStaff(), appointment, "BOOKING_CREATED", message);
+        com.cliniq.backend.model.Notification staffNotification = new com.cliniq.backend.model.Notification();
+        staffNotification.setAppointment(appointment);
+        staffNotification.setMessage("A neew appointment has been booked: " + patient.getPatientName());
+        staffNotification.setType("NEW_BOOKING");
+        staffNotification.setIsRead(false);
+        staffNotification.setCreatedAt(LocalDateTime.now());
+        notificationService.createNotification(staffNotification);
         return response(appointment);
     }
 

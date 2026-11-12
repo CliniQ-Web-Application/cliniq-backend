@@ -41,7 +41,7 @@ backend; application endpoint checks cannot secure direct database APIs.
 
 ## Time and lifecycle
 
-Configure `cliniq.booking.zone-id=UTC` (default), or its environment form `CLINIQ_BOOKING_ZONE_ID=UTC`. Set an explicit IANA zone when the clinic operates in another timezone; the server's locale/timezone is not used. An invalid zone fails startup. `BookingTimeConfig` supplies an injectable clinic-zone `Clock` for deterministic tests.
+Configure `cliniq.booking.zone-id=Africa/Gaborone` (default), or its environment form `CLINIQ_BOOKING_ZONE_ID=Africa/Gaborone`. Set an explicit IANA zone when the clinic operates in another timezone; the server's locale/timezone is not used. An invalid zone fails startup. `BookingTimeConfig` supplies an injectable clinic-zone `Clock` for deterministic tests.
 
 `slotDate`, `startTime`, and `endTime` are clinic-local schedule values. `bookedAt` is the actual reservation timestamp expressed in that same clinic zone, **not** the scheduled appointment time. Past starts, end <= start, and nonexistent/ambiguous daylight-saving transition times are not bookable. The current API uses local date/time strings without offsets; clients must interpret them in the configured clinic zone.
 
@@ -69,3 +69,7 @@ Use JDK 21 and cached Maven/dependencies:
 ```
 
 These focused tests do not start Spring Boot, load deployment configuration, access a backend service, or contact a database. They verify booking ownership/eligibility, locks, transaction metadata, write ordering/failures, DTO input/output, controller responses, profile ownership, HTTP authorization boundaries, and legacy mutation guards. They do not prove PostgreSQL concurrent locking/rollback behavior: run a separate disposable-database integration check before deployment (two simultaneous bookings must produce exactly one booking and one 409; a forced second-write failure must persist neither write). No dependency was added solely for testing.
+
+## Check-in QR codes
+
+`GET /api/appointments/{id}/qr` returns a 300x300 PNG QR encoding `<app-base-url>/check-in?id=<appointmentId>` (the shared check-in page in the frontend). The QR is generated on demand and never stored. Callers must be the appointment's patient owner or an active staff account; otherwise 403 (404 for unknown IDs, 401 when signed out). `cliniq.app-base-url` (or `CLINIQ_APP_BASE_URL`, default `http://localhost:3000`) sets the public frontend origin used in the encoded link — set it when deploying somewhere other than localhost.

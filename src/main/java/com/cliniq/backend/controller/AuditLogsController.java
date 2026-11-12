@@ -2,7 +2,6 @@ package com.cliniq.backend.controller;
 
 import com.cliniq.backend.model.AuditLogs;
 import com.cliniq.backend.service.AuditLogsService;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,19 +27,4 @@ public class AuditLogsController {
         return ResponseEntity.ok(auditLogsService.getAuditLogById(id));
     }
 
-    @PostMapping
-    public ResponseEntity<AuditLogs> create(@RequestBody AuditLogs auditLog) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(auditLogsService.createAuditLog(auditLog));
-    }
-
-    @PutMapping("/{id}")
-    public ResponseEntity<AuditLogs> update(@PathVariable UUID id, @RequestBody AuditLogs auditLog) {
-        return ResponseEntity.ok(auditLogsService.updateAuditLog(id, auditLog));
-    }
-
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable UUID id) {
-        auditLogsService.deleteAuditLog(id);
-        return ResponseEntity.noContent().build();
-    }
 }

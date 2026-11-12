@@ -116,13 +116,16 @@ public class OperationalService {
         appointment.setAppointmentStatus(AppointmentStatus.INCONSULTATION);
         appointment.setCalledTime(LocalDateTime.now());
 
-        Appointment saved = appointments.save(appointment);
+        com.cliniq.backend.model.Notification notification = new com.cliniq.backend.model.Notification();
+        notification.setPatient(appointment.getPatient());
+        notification.setAppointment(appointment);
+        notification.setMessage("You are next! Please proceed to the consultation room");
+        notification.setType("QUEUE_Called");
+        notification.setIsRead(false);
+        notification.setCreatedAt(LocalDateTime.now());
+        notificationService.createNotification(notification);
 
-        String msg = "You are being called now for your appointment";
-        notificationService.notifyPatient(saved.getPatient(), saved, "PATIENT_CALLED", msg);
-
-        return saved;
-
+        return appointments.save(appointment);
     }
 
     @Transactional
