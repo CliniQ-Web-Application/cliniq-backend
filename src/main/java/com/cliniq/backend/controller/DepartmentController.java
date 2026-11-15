@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 
 @RestController
 @RequestMapping("/api/departments")
@@ -29,18 +31,18 @@ public class DepartmentController {
     }
 
     @PostMapping
-    public ResponseEntity<Department> create(@RequestBody Department department) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(departmentService.createDepartment(department));
+    public ResponseEntity<Department> create(@RequestBody Department department, @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(departmentService.createDepartment(department, jwt));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Department> update(@PathVariable UUID id, @RequestBody Department department) {
-        return ResponseEntity.ok(departmentService.updateDepartment(id, department));
+    public ResponseEntity<Department> update(@PathVariable UUID id, @RequestBody Department department, @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(departmentService.updateDepartment(id, department, jwt));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable UUID id) {
-        departmentService.deleteDepartment(id);
+    public ResponseEntity<Void> delete(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        departmentService.deleteDepartment(id, jwt);
         return ResponseEntity.noContent().build();
     }
 }

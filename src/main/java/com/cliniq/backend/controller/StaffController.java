@@ -52,7 +52,7 @@ public class StaffController {
 
         accessPolicy.requireAdmin(jwt);
 
-        Staff created = staffService.registerStaff(request);
+        Staff created = staffService.registerStaff(request, jwt);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("message", "Staff account created successfully.", "staffId", created.getStaffId()));
     }
@@ -64,13 +64,13 @@ public class StaffController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Staff> update(@PathVariable UUID id, @RequestBody Staff staff) {
-        return ResponseEntity.ok(staffService.updateStaff(id, staff));
+    public ResponseEntity<Staff> update(@PathVariable UUID id, @RequestBody Staff staff, @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(staffService.updateStaff(id, staff, jwt));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable UUID id) {
-        staffService.deleteStaff(id);
+    public ResponseEntity<Void> delete(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        staffService.deleteStaff(id, jwt);
         return ResponseEntity.noContent().build();
     }
 }

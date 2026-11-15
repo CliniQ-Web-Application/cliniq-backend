@@ -10,6 +10,7 @@ import com.cliniq.backend.repository.DepartmentRepository;
 import com.cliniq.backend.repository.StaffRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
+import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.util.List;
 import java.util.UUID;
@@ -20,14 +21,16 @@ public class StaffService {
     private final StaffRepository staffRepository;
     private final DepartmentRepository departmentRepository;
     private final SupabaseAdminService supabaseAdminService;
+    private final AuditLogsService auditLogsService;
 
     public StaffService(
             StaffRepository staffRepository,
             DepartmentRepository departmentRepository,
-            SupabaseAdminService supabaseAdminService) {
+            SupabaseAdminService supabaseAdminService, AuditLogsService auditLogsService) {
         this.staffRepository = staffRepository;
         this.departmentRepository = departmentRepository;
         this.supabaseAdminService = supabaseAdminService;
+        this.auditLogsService = auditLogsService;
     }
 
     public List<Staff> getAllStaff() {
@@ -43,7 +46,7 @@ public class StaffService {
     }
 
     @Transactional
-    public Staff registerStaff(StaffRegistrationRequest request) {
+    public Staff registerStaff(StaffRegistrationRequest request, Jwt jwt) {
         String email = request.email().trim().toLowerCase();
 
         if (staffRepository.existsByEmailIgnoreCase(email)) {
@@ -68,10 +71,12 @@ public class StaffService {
 
         staff.setAvailabilityStatus(AvailabilityStatus.AVAILABLE);
 
-        return staffRepository.save(staff);
+        Staff saved = staffRepository.save(staff);
+        auditLogsService.record("STAFF_REGISTERED", "Staff account registered", "Staff", saved.getStaffId(), jwt);
+        return saved;
     }
 
-    public Staff updateStaff(UUID id, Staff staffDetails) {
+    public Staff updateStaff(UUID id, Staff staffDetails, Jwt jwt) {
         Staff staff = getStaffById(id);
         staff.setFirstName(staffDetails.getFirstName());
         staff.setLastName(staffDetails.getLastName());
@@ -81,12 +86,15 @@ public class StaffService {
         staff.setDepartment(staffDetails.getDepartment());
         staff.setAvailabilityStatus(staffDetails.getAvailabilityStatus());
 
-        return staffRepository.save(staff);
+        Staff saved = staffRepository.save(staff);
+        auditLogsService.record("STAFF_UPDATED", "Staff account updated", "Staff", saved.getStaffId(), jwt);
+        return saved;
     }
 
-    public void deleteStaff(UUID id) {
+    public void deleteStaff(UUID id, Jwt jwt) {
         if (!staffRepository.existsById(id)) { throw new RuntimeException("Staff not found with id: " + id);}
 
         staffRepository.deleteById(id);
+        auditLogsService.record("STAFF_DELETED", "Staff account deleted", "Staff", id, jwt);
     }
 }

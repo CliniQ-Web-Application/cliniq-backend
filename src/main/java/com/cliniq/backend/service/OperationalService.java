@@ -36,10 +36,12 @@ public class OperationalService {
     private final DepartmentRepository departments;
     private final AccessPolicy accessPolicy;
     private final NotificationService notificationService;
+    private final AuditLogsService auditLogsService;
 
     public OperationalService(AppointmentRepository appointments, QueueRepository queues,
                               StaffRepository staff, PatientRepository patients,
-                              DepartmentRepository departments, AccessPolicy accessPolicy, NotificationService notificationService) {
+                              DepartmentRepository departments, AccessPolicy accessPolicy,
+                              NotificationService notificationService, AuditLogsService auditLogsService) {
         this.appointments = appointments;
         this.queues = queues;
         this.staff = staff;
@@ -47,13 +49,16 @@ public class OperationalService {
         this.departments = departments;
         this.accessPolicy = accessPolicy;
         this.notificationService = notificationService;
+        this.auditLogsService = auditLogsService;
     }
 
     @Transactional
     public Staff updateAvailability(Jwt jwt, AvailabilityUpdateRequest request) {
         Staff current = requireStaff(jwt);
         current.setAvailabilityStatus(request.status());
-        return staff.save(current);
+        Staff saved = staff.save(current);
+        auditLogsService.record("STAFF_AVAILABILITY_UPDATED", request.status().name(), "Staff", saved.getStaffId(), jwt);
+        return saved;
     }
 
     @Transactional
@@ -69,7 +74,9 @@ public class OperationalService {
         appointment.setAppointmentStatus(AppointmentStatus.WAITING);
         appointment.setCheckInTime(LocalDateTime.now());
         createQueue(appointment, appointment.getStaff().getDepartment());
-        return appointments.save(appointment);
+        Appointment saved = appointments.save(appointment);
+        auditLogsService.record("APPOINTMENT_CHECKED_IN", "Appointment checked in", "Appointment", saved.getAppointmentId(), jwt);
+        return saved;
     }
 
     @Transactional
@@ -87,6 +94,7 @@ public class OperationalService {
         appointment.setCheckInTime(LocalDateTime.now());
         Appointment saved = appointments.save(appointment);
         createQueue(saved, department);
+        auditLogsService.record("WALK_IN_REGISTERED", "Walk-in patient added to queue", "Appointment", saved.getAppointmentId(), jwt);
         return saved;
     }
 
@@ -97,7 +105,9 @@ public class OperationalService {
         Appointment appointment = queue.getAppointment();
         appointment.setPriority(Priority.URGENT);
         appointments.save(appointment);
-        return queues.save(queue);
+        Queue saved = queues.save(queue);
+        auditLogsService.record("QUEUE_PRIORITISED", request.reason(), "Queue", saved.getQueueId(), jwt);
+        return saved;
     }
 
     @Transactional
@@ -125,7 +135,9 @@ public class OperationalService {
         notification.setCreatedAt(LocalDateTime.now());
         notificationService.createNotification(notification);
 
-        return appointments.save(appointment);
+        Appointment saved = appointments.save(appointment);
+        auditLogsService.record("QUEUE_PATIENT_CALLED", "Next patient called", "Appointment", saved.getAppointmentId(), jwt);
+        return saved;
     }
 
     @Transactional
@@ -140,7 +152,9 @@ public class OperationalService {
         }
         appointment.setAppointmentStatus(AppointmentStatus.COMPLETED);
         appointment.setCompletedTime(LocalDateTime.now());
-        return appointments.save(appointment);
+        Appointment saved = appointments.save(appointment);
+        auditLogsService.record("CONSULTATION_COMPLETED", "Consultation completed", "Appointment", saved.getAppointmentId(), jwt);
+        return saved;
     }
 
     @Transactional
@@ -153,7 +167,9 @@ public class OperationalService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Only booked appointments can be cancelled.");
         }
         appointment.setAppointmentStatus(AppointmentStatus.CANCELLED);
-        return appointments.save(appointment);
+        Appointment saved = appointments.save(appointment);
+        auditLogsService.record("APPOINTMENT_CANCELLED", "Patient cancelled appointment", "Appointment", saved.getAppointmentId(), jwt);
+        return saved;
     }
 
     public Queue queuePosition(Jwt jwt, UUID appointmentId) {

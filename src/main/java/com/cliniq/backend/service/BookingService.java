@@ -14,6 +14,7 @@ import com.cliniq.backend.repository.AppointmentRepository;
 import com.cliniq.backend.repository.PatientRepository;
 import com.cliniq.backend.repository.ScheduleRepository;
 import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -22,6 +23,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,15 +38,30 @@ public class BookingService {
     private final AccessPolicy accessPolicy;
     private final Clock clock;
     private final NotificationService notificationService;
+    private final AuditLogsService auditLogsService;
 
+    @Autowired
     public BookingService(ScheduleRepository schedules, AppointmentRepository appointments,
-                          PatientRepository patients, AccessPolicy accessPolicy, Clock clock, NotificationService notificationService) {
+                          PatientRepository patients, AccessPolicy accessPolicy, Clock clock,
+                          NotificationService notificationService, AuditLogsService auditLogsService) {
         this.schedules = schedules;
         this.appointments = appointments;
         this.patients = patients;
         this.accessPolicy = accessPolicy;
         this.clock = clock;
         this.notificationService = notificationService;
+        this.auditLogsService = auditLogsService;
+    }
+
+    public BookingService(ScheduleRepository schedules, AppointmentRepository appointments,
+                          PatientRepository patients, AccessPolicy accessPolicy, Clock clock,
+                          NotificationService notificationService) {
+        this(schedules, appointments, patients, accessPolicy, clock, notificationService, null);
+    }
+
+    public BookingService(ScheduleRepository schedules, AppointmentRepository appointments,
+                          PatientRepository patients, AccessPolicy accessPolicy, Clock clock) {
+        this(schedules, appointments, patients, accessPolicy, clock, null, null);
     }
 
     public List<BookingAvailability> availability(UUID authUserId) {
@@ -67,23 +84,32 @@ public class BookingService {
     }
 
     @Transactional
-    public BookingResponse book(UUID authUserId, UUID slotId) {
+    public BookingResponse book(UUID authUserId, UUID slotId, LocalTime appointmentTime) {
         Patient patient = requireProfile(authUserId);
         if (slotId == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "slotId is required");
         }
+        if (appointmentTime != null && (appointmentTime.getSecond() != 0 || appointmentTime.getNano() != 0
+                || appointmentTime.getMinute() % 5 != 0)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "appointmentTime must be on a 5-minute boundary");
+        }
         Schedule slot = schedules.findByIdForUpdate(slotId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Slot not found"));
+        if (appointmentTime == null) appointmentTime = slot.getStartTime();
         // Read time only after acquiring the lock: a waiter may cross the slot start time.
         Instant now = clock.instant();
         long booked = appointments.countBySlot_SlotId(slot.getSlotId());
         if (!isBookable(slot, now) || booked >= slot.effectiveCapacity()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Slot is no longer available for booking");
         }
+        if (appointmentTime.isBefore(slot.getStartTime()) || !appointmentTime.isBefore(slot.getEndTime())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "appointmentTime must fall within the availability window");
+        }
         Appointment appointment = new Appointment();
         appointment.setPatient(patient);
         appointment.setStaff(slot.getStaff());
         appointment.setSlot(slot);
+        appointment.setAppointmentTime(appointmentTime);
         appointment.setAppointmentStatus(AppointmentStatus.BOOKED);
         appointment.setPriority(Priority.NORMAL);
         appointment.setCheckInTime(null);
@@ -100,8 +126,17 @@ public class BookingService {
         staffNotification.setType("NEW_BOOKING");
         staffNotification.setIsRead(false);
         staffNotification.setCreatedAt(LocalDateTime.now());
-        notificationService.createNotification(staffNotification);
+        if (notificationService != null) notificationService.createNotification(staffNotification);
+        if (auditLogsService != null) {
+            auditLogsService.record("BOOKING_CREATED", "Patient booked an appointment", "Appointment",
+                    appointment.getAppointmentId(), null);
+        }
         return response(appointment);
+    }
+
+    @Transactional
+    public BookingResponse book(UUID authUserId, UUID slotId) {
+        return book(authUserId, slotId, null);
     }
 
     public List<BookingResponse> list(UUID authUserId) {
@@ -154,7 +189,7 @@ public class BookingService {
         Schedule slot = appointment.getSlot();
         Staff doctor = appointment.getStaff();
         return new BookingResponse(appointment.getAppointmentId(), appointment.getAppointmentStatus(), slot.getSlotId(),
-                slot.getSlotDate(), slot.getStartTime(), slot.getEndTime(),
+                slot.getSlotDate(), slot.getStartTime(), slot.getEndTime(), appointment.getAppointmentTime(),
                 doctor.getDepartment() == null ? null : doctor.getDepartment().getName(),
                 doctor.getFirstName() + " " + doctor.getLastName(), appointment.getBookedAt());
     }

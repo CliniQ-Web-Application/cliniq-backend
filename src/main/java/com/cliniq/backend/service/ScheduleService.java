@@ -21,17 +21,24 @@ public class ScheduleService {
 
     private final AppointmentRepository appointmentRepository;
     private final StaffRepository staffRepository;
+    private final AuditLogsService auditLogsService;
 
     public ScheduleService(ScheduleRepository scheduleRepository, AppointmentRepository appointmentRepository) {
-        this(scheduleRepository, appointmentRepository, null);
+        this(scheduleRepository, appointmentRepository, null, null);
     }
 
     @Autowired
     public ScheduleService(ScheduleRepository scheduleRepository, AppointmentRepository appointmentRepository,
-                           StaffRepository staffRepository) {
+                           StaffRepository staffRepository, AuditLogsService auditLogsService) {
         this.scheduleRepository = scheduleRepository;
         this.appointmentRepository = appointmentRepository;
         this.staffRepository = staffRepository;
+        this.auditLogsService = auditLogsService;
+    }
+
+    public ScheduleService(ScheduleRepository scheduleRepository, AppointmentRepository appointmentRepository,
+                           StaffRepository staffRepository) {
+        this(scheduleRepository, appointmentRepository, staffRepository, null);
     }
 
     @Transactional
@@ -47,7 +54,9 @@ public class ScheduleService {
         schedule.setSlotId(null);
         schedule.setSlotStatus(SlotStatus.OPEN);
         schedule.setStaff(staff);
-        return createSchedule(schedule);
+        Schedule saved = createSchedule(schedule);
+        auditLogsService.record("SCHEDULE_CREATED", "Doctor availability created", "Schedule", saved.getSlotId(), jwt);
+        return saved;
     }
 
     public List<Schedule> getAllSchedules() {
@@ -68,7 +77,7 @@ public class ScheduleService {
     }
 
     @Transactional
-    public Schedule updateSchedule(UUID id, Schedule details) {
+    public Schedule updateSchedule(UUID id, Schedule details, Jwt jwt) {
         Schedule schedule = lockMutableSlot(id);
         rejectBookedStatus(details);
         schedule.setSlotDate(details.getSlotDate());
@@ -76,12 +85,25 @@ public class ScheduleService {
         schedule.setEndTime(details.getEndTime());
         schedule.setSlotStatus(details.getSlotStatus());
         schedule.setStaff(details.getStaff());
-        return scheduleRepository.save(schedule);
+        Schedule saved = scheduleRepository.save(schedule);
+        if (auditLogsService != null) auditLogsService.record("SCHEDULE_UPDATED", "Doctor availability updated", "Schedule", saved.getSlotId(), jwt);
+        return saved;
+    }
+
+    @Transactional
+    public Schedule updateSchedule(UUID id, Schedule details) {
+        return updateSchedule(id, details, null);
+    }
+
+    @Transactional
+    public void deleteSchedule(UUID id, Jwt jwt) {
+        scheduleRepository.delete(lockMutableSlot(id));
+        if (auditLogsService != null) auditLogsService.record("SCHEDULE_DELETED", "Doctor availability deleted", "Schedule", id, jwt);
     }
 
     @Transactional
     public void deleteSchedule(UUID id) {
-        scheduleRepository.delete(lockMutableSlot(id));
+        deleteSchedule(id, null);
     }
 
     private Schedule lockMutableSlot(UUID id) {

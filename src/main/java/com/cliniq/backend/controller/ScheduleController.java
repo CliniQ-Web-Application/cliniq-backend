@@ -36,13 +36,13 @@ public class ScheduleController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Schedule> update(@PathVariable UUID id, @RequestBody Schedule schedule) {
-        return ResponseEntity.ok(scheduleService.updateSchedule(id, schedule));
+    public ResponseEntity<Schedule> update(@PathVariable UUID id, @RequestBody Schedule schedule, @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(scheduleService.updateSchedule(id, schedule, jwt));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable UUID id) {
-        scheduleService.deleteSchedule(id);
+    public ResponseEntity<Void> delete(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        scheduleService.deleteSchedule(id, jwt);
         return ResponseEntity.noContent().build();
     }
 }

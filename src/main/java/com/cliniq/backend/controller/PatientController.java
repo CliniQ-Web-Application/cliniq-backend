@@ -47,7 +47,7 @@ public class PatientController {
         } catch (ResponseStatusException absent) {
             if (absent.getStatusCode() != HttpStatus.NOT_FOUND) throw absent;
         }
-        return patientService.createPatient(profile(request, jwt), userId);
+        return patientService.createPatient(profile(request, jwt), userId, jwt);
     }
 
     private Patient profile(PatientProfileRequest request, Jwt jwt) {
@@ -92,18 +92,18 @@ public class PatientController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Patient ID must not be supplied");
         }
         Patient created = patientService.createPatient(profile(new PatientProfileRequest(
-                patient.getPatientName(), patient.getPatientSurname(), patient.getNationalID(), patient.getPhone()), jwt), authUserId);
+                patient.getPatientName(), patient.getPatientSurname(), patient.getNationalID(), patient.getPhone()), jwt), authUserId, jwt);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Patient> updatePatient(@PathVariable UUID id, @RequestBody Patient patient) {
-        return ResponseEntity.ok(patientService.updatePatient(id, patient));
+    public ResponseEntity<Patient> updatePatient(@PathVariable UUID id, @RequestBody Patient patient, @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(patientService.updatePatient(id, patient, jwt));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deletePatient(@PathVariable UUID id) {
-        patientService.deletePatient(id);
+    public ResponseEntity<Void> deletePatient(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        patientService.deletePatient(id, jwt);
         return ResponseEntity.noContent().build();
     }
 
