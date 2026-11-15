@@ -16,6 +16,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.time.LocalTime;
 
 @RestController
 @RequestMapping("/api/bookings")
@@ -37,7 +38,9 @@ public class BookingController {
         if (request == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "slotId is required");
         }
-        return ResponseEntity.status(HttpStatus.CREATED).body(bookings.book(userId, request.getSlotId()));
+        return ResponseEntity.status(HttpStatus.CREATED).body(request.getAppointmentTime() == null
+                ? bookings.book(userId, request.getSlotId())
+                : bookings.book(userId, request.getSlotId(), request.getAppointmentTime()));
     }
 
     @GetMapping

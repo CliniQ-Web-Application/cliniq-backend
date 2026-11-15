@@ -1,8 +1,6 @@
 package com.cliniq.backend.model;
 
 import jakarta.persistence.*;
-import org.hibernate.grammars.hql.HqlParser;
-
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -25,7 +23,7 @@ public class AuditLogs {
     private String entityName;
 
     @Column(nullable = false)
-    private int entityId;
+    private String entityId;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
@@ -42,8 +40,8 @@ public class AuditLogs {
     public void setReason(String reason) { this.reason = reason; }
     public String getEntityName() { return entityName; }
     public void setEntityName(String entityName) { this.entityName = entityName; }
-    public int getEntityId() { return entityId; }
-    public void setEntityId(int entityId) { this.entityId = entityId; }
+    public String getEntityId() { return entityId; }
+    public void setEntityId(String entityId) { this.entityId = entityId; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public Staff getStaff() { return staff; }
