@@ -1,14 +1,17 @@
 package com.cliniq.backend.controller;
 
+import com.cliniq.backend.dto.PageResponse;
+import com.cliniq.backend.dto.ScheduleResponse;
 import com.cliniq.backend.model.Schedule;
 import com.cliniq.backend.service.ScheduleService;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -21,23 +24,26 @@ public class ScheduleController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Schedule>> getAll() {
-        return ResponseEntity.ok(scheduleService.getAllSchedules());
+    public ResponseEntity<PageResponse<ScheduleResponse>> getAll(
+            @PageableDefault(size = 200, sort = "slotDate") Pageable pageable) {
+        return ResponseEntity.ok(PageResponse.from(scheduleService.getSchedules(pageable)));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Schedule> getById(@PathVariable UUID id) {
-        return ResponseEntity.ok(scheduleService.getScheduleById(id));
+    public ResponseEntity<ScheduleResponse> getById(@PathVariable UUID id) {
+        return ResponseEntity.ok(scheduleService.getScheduleDto(id));
     }
 
     @PostMapping
-    public ResponseEntity<Schedule> create(@RequestBody Schedule schedule, @AuthenticationPrincipal Jwt jwt) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(scheduleService.createForStaff(jwt, schedule));
+    public ResponseEntity<ScheduleResponse> create(@RequestBody Schedule schedule,
+                                                   @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(scheduleService.createScheduleDto(jwt, schedule));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Schedule> update(@PathVariable UUID id, @RequestBody Schedule schedule, @AuthenticationPrincipal Jwt jwt) {
-        return ResponseEntity.ok(scheduleService.updateSchedule(id, schedule, jwt));
+    public ResponseEntity<ScheduleResponse> update(@PathVariable UUID id, @RequestBody Schedule schedule,
+                                                   @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(scheduleService.updateScheduleDto(id, schedule, jwt));
     }
 
     @DeleteMapping("/{id}")

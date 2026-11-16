@@ -1,9 +1,13 @@
 package com.cliniq.backend.service;
 
+import com.cliniq.backend.dto.QueueResponse;
 import com.cliniq.backend.model.Queue;
 import com.cliniq.backend.repository.QueueRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -29,6 +33,26 @@ public class QueueService {
 
     public Queue getQueueById(UUID id) {
         return queueRepository.findById(id).orElseThrow(() -> new RuntimeException("Queue not found with id: " + id));
+    }
+
+    @Transactional(readOnly = true)
+    public Page<QueueResponse> getQueues(Pageable pageable) {
+        return queueRepository.findAllForList(pageable).map(QueueResponse::from);
+    }
+
+    @Transactional(readOnly = true)
+    public QueueResponse getQueueDto(UUID id) {
+        return QueueResponse.from(getQueueById(id));
+    }
+
+    @Transactional
+    public QueueResponse createQueueDto(Queue queue) {
+        return QueueResponse.from(createQueue(queue));
+    }
+
+    @Transactional
+    public QueueResponse updateQueueDto(UUID id, Queue details) {
+        return QueueResponse.from(updateQueue(id, details));
     }
 
     public Queue createQueue(Queue queue) {

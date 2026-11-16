@@ -1,7 +1,11 @@
 package com.cliniq.backend.controller;
 
-import com.cliniq.backend.model.Patient;
+import com.cliniq.backend.dto.PageResponse;
 import com.cliniq.backend.dto.PatientProfileRequest;
+import com.cliniq.backend.dto.PatientResponse;
+import com.cliniq.backend.model.Patient;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import com.cliniq.backend.service.AccessPolicy;
 import jakarta.validation.Valid;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -75,17 +79,18 @@ public class PatientController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Patient>> getAllPatients() {
-        return ResponseEntity.ok(patientService.getAllPatients());
+    public ResponseEntity<PageResponse<PatientResponse>> getAllPatients(
+            @PageableDefault(size = 200, sort = "patientID") Pageable pageable) {
+        return ResponseEntity.ok(PageResponse.from(patientService.getPatients(pageable)));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Patient> getPatientById(@PathVariable UUID id) {
-        return ResponseEntity.ok(patientService.getPatientById(id));
+    public ResponseEntity<PatientResponse> getPatientById(@PathVariable UUID id) {
+        return ResponseEntity.ok(patientService.getPatientDto(id));
     }
 
     @PostMapping
-    public ResponseEntity<Patient> createPatient(@RequestBody Patient patient, @AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<PatientResponse> createPatient(@RequestBody Patient patient, @AuthenticationPrincipal Jwt jwt) {
         UUID authUserId = AccessPolicy.subject(jwt);
         accessPolicy.requirePatient(authUserId);
         if (patient.getPatientID() != null) {
@@ -93,12 +98,12 @@ public class PatientController {
         }
         Patient created = patientService.createPatient(profile(new PatientProfileRequest(
                 patient.getPatientName(), patient.getPatientSurname(), patient.getNationalID(), patient.getPhone()), jwt), authUserId, jwt);
-        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+        return ResponseEntity.status(HttpStatus.CREATED).body(PatientResponse.from(created));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Patient> updatePatient(@PathVariable UUID id, @RequestBody Patient patient, @AuthenticationPrincipal Jwt jwt) {
-        return ResponseEntity.ok(patientService.updatePatient(id, patient, jwt));
+    public ResponseEntity<PatientResponse> updatePatient(@PathVariable UUID id, @RequestBody Patient patient, @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(patientService.updatePatientDto(id, patient, jwt));
     }
 
     @DeleteMapping("/{id}")

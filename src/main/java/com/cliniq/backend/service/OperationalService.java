@@ -1,7 +1,10 @@
 package com.cliniq.backend.service;
 
+import com.cliniq.backend.dto.AppointmentResponse;
 import com.cliniq.backend.dto.AvailabilityUpdateRequest;
 import com.cliniq.backend.dto.PriorityRequest;
+import com.cliniq.backend.dto.QueueResponse;
+import com.cliniq.backend.dto.StaffResponse;
 import com.cliniq.backend.dto.WalkInRequest;
 import com.cliniq.backend.enums.AppointmentStatus;
 import com.cliniq.backend.enums.AvailabilityStatus;
@@ -179,6 +182,46 @@ public class OperationalService {
         }
         return queues.findByAppointment(appointment)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "This appointment is not in a queue."));
+    }
+
+    @Transactional
+    public StaffResponse updateAvailabilityDto(Jwt jwt, AvailabilityUpdateRequest request) {
+        return StaffResponse.from(updateAvailability(jwt, request));
+    }
+
+    @Transactional
+    public AppointmentResponse checkInDto(Jwt jwt, UUID appointmentId) {
+        return AppointmentResponse.from(checkIn(jwt, appointmentId));
+    }
+
+    @Transactional
+    public AppointmentResponse registerWalkInDto(Jwt jwt, WalkInRequest request) {
+        return AppointmentResponse.from(registerWalkIn(jwt, request));
+    }
+
+    @Transactional
+    public QueueResponse prioritiseDto(Jwt jwt, UUID queueId, PriorityRequest request) {
+        return QueueResponse.from(prioritise(jwt, queueId, request));
+    }
+
+    @Transactional
+    public AppointmentResponse callNextDto(Jwt jwt) {
+        return AppointmentResponse.from(callNext(jwt));
+    }
+
+    @Transactional
+    public AppointmentResponse completeDto(Jwt jwt, UUID appointmentId) {
+        return AppointmentResponse.from(complete(jwt, appointmentId));
+    }
+
+    @Transactional
+    public AppointmentResponse cancelPatientDto(Jwt jwt, UUID appointmentId) {
+        return AppointmentResponse.from(cancelPatient(jwt, appointmentId));
+    }
+
+    @Transactional
+    public QueueResponse queuePositionDto(Jwt jwt, UUID appointmentId) {
+        return QueueResponse.from(queuePosition(jwt, appointmentId));
     }
 
     // Queue order is booking time, falling back to check-in/creation for records without a bookedAt (e.g. walk-ins).

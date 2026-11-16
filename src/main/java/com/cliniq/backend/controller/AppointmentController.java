@@ -1,12 +1,15 @@
 package com.cliniq.backend.controller;
 
+import com.cliniq.backend.dto.AppointmentResponse;
+import com.cliniq.backend.dto.PageResponse;
 import com.cliniq.backend.model.Appointment;
 import com.cliniq.backend.service.AppointmentService;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -19,23 +22,24 @@ public class AppointmentController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Appointment>> getAll() {
-        return ResponseEntity.ok(appointmentService.getAllAppointments());
+    public ResponseEntity<PageResponse<AppointmentResponse>> getAll(
+            @PageableDefault(size = 200, sort = "appointmentId") Pageable pageable) {
+        return ResponseEntity.ok(PageResponse.from(appointmentService.getAppointments(pageable)));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Appointment> getById(@PathVariable UUID id) {
-        return ResponseEntity.ok(appointmentService.getAppointmentById(id));
+    public ResponseEntity<AppointmentResponse> getById(@PathVariable UUID id) {
+        return ResponseEntity.ok(appointmentService.getAppointmentDto(id));
     }
 
     @PostMapping
-    public ResponseEntity<Appointment> create(@RequestBody Appointment appointment) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(appointmentService.createAppointment(appointment));
+    public ResponseEntity<AppointmentResponse> create(@RequestBody Appointment appointment) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(appointmentService.createAppointmentDto(appointment));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Appointment> update(@PathVariable UUID id, @RequestBody Appointment appointment) {
-        return ResponseEntity.ok(appointmentService.updateAppointment(id, appointment));
+    public ResponseEntity<AppointmentResponse> update(@PathVariable UUID id, @RequestBody Appointment appointment) {
+        return ResponseEntity.ok(appointmentService.updateAppointmentDto(id, appointment));
     }
 
     @DeleteMapping("/{id}")

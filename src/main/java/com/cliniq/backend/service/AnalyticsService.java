@@ -2,115 +2,103 @@ package com.cliniq.backend.service;
 
 import com.cliniq.backend.dto.AnalyticsResponse;
 import com.cliniq.backend.enums.AppointmentStatus;
-import com.cliniq.backend.model.Appointment;
+import com.cliniq.backend.model.Department;
+import com.cliniq.backend.model.Staff;
 import com.cliniq.backend.repository.AppointmentRepository;
+import com.cliniq.backend.repository.DepartmentRepository;
+import com.cliniq.backend.repository.StaffRepository;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.EnumMap;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
+/**
+ * Builds analytics from database-side COUNT / AVG / GROUP BY queries. No
+ * appointment history is loaded into the JVM heap, so the heap footprint is
+ * independent of how many appointments the hospital has recorded.
+ */
 @Service
 public class AnalyticsService {
     private final AppointmentRepository appointments;
+    private final DepartmentRepository departments;
+    private final StaffRepository staff;
 
-    public AnalyticsService(AppointmentRepository appointments) {
+    public AnalyticsService(AppointmentRepository appointments,
+                            DepartmentRepository departments,
+                            StaffRepository staff) {
         this.appointments = appointments;
+        this.departments = departments;
+        this.staff = staff;
     }
 
     public AnalyticsResponse getAnalytics(LocalDate from, LocalDate to, UUID departmentId, UUID doctorId) {
-        List<Appointment> all = appointments.findAllForAnalytics();
-        List<Appointment> filtered = all.stream()
-                .filter(appointment -> inDateRange(appointment, from, to))
-                .filter(appointment -> departmentId == null
-                        || appointment.getStaff().getDepartment() != null
-                        && departmentId.equals(appointment.getStaff().getDepartment().getDepartmentId()))
-                .filter(appointment -> doctorId == null || doctorId.equals(appointment.getStaff().getStaffId()))
-                .toList();
+        Map<AppointmentStatus, Long> counts = new LinkedHashMap<>();
+        for (Object[] row : appointments.countAppointmentsByStatus(from, to, departmentId, doctorId)) {
+            counts.put(statusOf(row[0]), number(row[1]));
+        }
 
-        Map<AppointmentStatus, Long> counts = filtered.stream()
-                .collect(Collectors.groupingBy(Appointment::getAppointmentStatus, () -> new EnumMap<>(AppointmentStatus.class), Collectors.counting()));
-        List<WaitSample> waits = filtered.stream().map(this::waitSample).flatMap(java.util.Optional::stream).toList();
-        long averageWait = average(waits.stream().map(WaitSample::minutes).toList());
+        long completed = counts.getOrDefault(AppointmentStatus.COMPLETED, 0L);
+        long cancelled = counts.getOrDefault(AppointmentStatus.CANCELLED, 0L);
+        long noShows = counts.getOrDefault(AppointmentStatus.NOSHOW, 0L);
+        long total = counts.values().stream().mapToLong(Long::longValue).sum();
+        long averageWait = number(appointments.averageWaitMinutes(from, to, departmentId, doctorId));
 
-        List<AnalyticsResponse.DepartmentWait> waitByDepartment = waits.stream()
-                .collect(Collectors.groupingBy(WaitSample::department, LinkedHashMap::new, Collectors.mapping(WaitSample::minutes, Collectors.toList())))
-                .entrySet().stream()
-                .map(entry -> new AnalyticsResponse.DepartmentWait(entry.getKey(), average(entry.getValue())))
-                .toList();
+        List<AnalyticsResponse.DepartmentWait> waitByDepartment = new ArrayList<>();
+        for (Object[] row : appointments.averageWaitByDepartment(from, to, departmentId, doctorId)) {
+            waitByDepartment.add(new AnalyticsResponse.DepartmentWait(String.valueOf(row[0]), number(row[1])));
+        }
 
-        List<AnalyticsResponse.ArrivalHour> arrivalHours = filtered.stream()
-                .map(this::arrivalTime)
-                .flatMap(java.util.Optional::stream)
-                .collect(Collectors.groupingBy(LocalDateTime::getHour, LinkedHashMap::new, Collectors.counting()))
-                .entrySet().stream()
-                .sorted(Map.Entry.comparingByKey())
-                .map(entry -> new AnalyticsResponse.ArrivalHour(entry.getKey(), entry.getValue()))
-                .toList();
-
-        List<AnalyticsResponse.Outcome> outcomes = List.of(
-                new AnalyticsResponse.Outcome("COMPLETED", counts.getOrDefault(AppointmentStatus.COMPLETED, 0L)),
-                new AnalyticsResponse.Outcome("CANCELLED", counts.getOrDefault(AppointmentStatus.CANCELLED, 0L)),
-                new AnalyticsResponse.Outcome("NOSHOW", counts.getOrDefault(AppointmentStatus.NOSHOW, 0L))
-        );
+        List<AnalyticsResponse.ArrivalHour> arrivalHours = new ArrayList<>();
+        for (Object[] row : appointments.arrivalsByHour(from, to, departmentId, doctorId)) {
+            arrivalHours.add(new AnalyticsResponse.ArrivalHour(number(row[0]).intValue(), number(row[1])));
+        }
 
         return new AnalyticsResponse(
-                new AnalyticsResponse.Metrics(
-                        filtered.size(),
-                        counts.getOrDefault(AppointmentStatus.COMPLETED, 0L),
-                        counts.getOrDefault(AppointmentStatus.CANCELLED, 0L),
-                        counts.getOrDefault(AppointmentStatus.NOSHOW, 0L),
-                        averageWait),
+                new AnalyticsResponse.Metrics(total, completed, cancelled, noShows, averageWait),
                 waitByDepartment,
                 arrivalHours,
-                outcomes,
-                options(all, appointment -> appointment.getStaff().getDepartment() == null ? null : appointment.getStaff().getDepartment().getDepartmentId().toString(),
-                        appointment -> appointment.getStaff().getDepartment() == null ? null : appointment.getStaff().getDepartment().getName()),
-                options(all, appointment -> appointment.getStaff().getStaffId().toString(),
-                        appointment -> appointment.getStaff().getFirstName() + " " + appointment.getStaff().getLastName())
+                List.of(
+                        new AnalyticsResponse.Outcome("COMPLETED", completed),
+                        new AnalyticsResponse.Outcome("CANCELLED", cancelled),
+                        new AnalyticsResponse.Outcome("NOSHOW", noShows)
+                ),
+                departmentOptions(),
+                doctorOptions()
         );
     }
 
-    private boolean inDateRange(Appointment appointment, LocalDate from, LocalDate to) {
-        LocalDate date = appointment.getSlot() != null && appointment.getSlot().getSlotDate() != null
-                ? appointment.getSlot().getSlotDate()
-                : appointment.getCreatedAt().toLocalDate();
-        return (from == null || !date.isBefore(from)) && (to == null || !date.isAfter(to));
+    /** Appointment statuses are persisted ordinally (the entity has no @Enumerated). */
+    private AppointmentStatus statusOf(Object value) {
+        int ordinal = number(value).intValue();
+        AppointmentStatus[] values = AppointmentStatus.values();
+        return ordinal >= 0 && ordinal < values.length ? values[ordinal] : AppointmentStatus.BOOKED;
     }
 
-    private java.util.Optional<WaitSample> waitSample(Appointment appointment) {
-        if (appointment.getCheckInTime() == null || appointment.getCalledTime() == null) return java.util.Optional.empty();
-        long minutes = Math.max(0, Duration.between(appointment.getCheckInTime(), appointment.getCalledTime()).toMinutes());
-        String department = appointment.getStaff().getDepartment() == null ? "Unassigned" : appointment.getStaff().getDepartment().getName();
-        return java.util.Optional.of(new WaitSample(department, minutes));
+    private Long number(Object value) {
+        return value instanceof Number number ? number.longValue() : 0L;
     }
 
-    private java.util.Optional<LocalDateTime> arrivalTime(Appointment appointment) {
-        return java.util.Optional.ofNullable(appointment.getCheckInTime() != null ? appointment.getCheckInTime() : appointment.getCreatedAt());
+    private List<AnalyticsResponse.FilterOption> departmentOptions() {
+        return departments.findAll().stream()
+                .filter(department -> department.getDepartmentId() != null && department.getName() != null)
+                .map(department -> new AnalyticsResponse.FilterOption(
+                        department.getDepartmentId().toString(), department.getName()))
+                .sorted(Comparator.comparing(AnalyticsResponse.FilterOption::label))
+                .toList();
     }
 
-    private long average(List<Long> values) {
-        return values.isEmpty() ? 0 : Math.round(values.stream().mapToLong(Long::longValue).average().orElse(0));
+    private List<AnalyticsResponse.FilterOption> doctorOptions() {
+        return staff.findAll().stream()
+                .filter(member -> member.getFirstName() != null)
+                .map(member -> new AnalyticsResponse.FilterOption(
+                        member.getStaffId().toString(),
+                        (member.getFirstName() + " " + (member.getLastName() == null ? "" : member.getLastName())).trim()))
+                .sorted(Comparator.comparing(AnalyticsResponse.FilterOption::label))
+                .toList();
     }
-
-    private List<AnalyticsResponse.FilterOption> options(
-            List<Appointment> source,
-            Function<Appointment, String> id,
-            Function<Appointment, String> label) {
-        Map<String, String> unique = source.stream()
-                .filter(appointment -> id.apply(appointment) != null && label.apply(appointment) != null)
-                .map(appointment -> Map.entry(id.apply(appointment), label.apply(appointment)))
-                .sorted(Map.Entry.comparingByValue())
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (left, right) -> left, LinkedHashMap::new));
-        return unique.entrySet().stream().map(entry -> new AnalyticsResponse.FilterOption(entry.getKey(), entry.getValue())).toList();
-    }
-
-    private record WaitSample(String department, long minutes) {}
 }

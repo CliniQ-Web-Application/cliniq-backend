@@ -2,6 +2,7 @@
 package com.cliniq.backend.service;
 
 import java.util.Map;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -40,6 +41,22 @@ public class SupabaseAdminService {
         if (result == null || result.get("id") == null) {throw new IllegalStateException( "Supabase did not return a user UUID." ); }
 
         return result.get("id").toString();
+    }
+
+    /**
+     * Deactivates a Supabase Auth account without deleting it. Banning the user
+     * keeps audit history intact while immediately revoking their sessions.
+     */
+    public void deactivateUser(UUID authUserId) {
+        client.put()
+                .uri("/auth/v1/admin/users/{id}", authUserId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of(
+                        "ban_duration", "876000h",
+                        "app_metadata", Map.of("cliniq_deactivated", true)
+                ))
+                .retrieve()
+                .toBodilessEntity();
     }
 }
 

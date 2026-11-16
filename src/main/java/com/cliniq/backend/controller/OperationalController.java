@@ -1,9 +1,9 @@
 package com.cliniq.backend.controller;
 
+import com.cliniq.backend.dto.AppointmentResponse;
 import com.cliniq.backend.dto.PriorityRequest;
+import com.cliniq.backend.dto.QueueResponse;
 import com.cliniq.backend.dto.WalkInRequest;
-import com.cliniq.backend.model.Appointment;
-import com.cliniq.backend.model.Queue;
 import com.cliniq.backend.service.OperationalService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -22,38 +22,38 @@ public class OperationalController {
     }
 
     @PostMapping("/appointments/{id}/check-in")
-    public Appointment checkIn(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
-        return operationalService.checkIn(jwt, id);
+    public AppointmentResponse checkIn(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        return operationalService.checkInDto(jwt, id);
     }
 
     @PostMapping("/appointments/walk-in")
-    public Appointment walkIn(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody WalkInRequest request) {
-        return operationalService.registerWalkIn(jwt, request);
+    public AppointmentResponse walkIn(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody WalkInRequest request) {
+        return operationalService.registerWalkInDto(jwt, request);
     }
 
     @PostMapping("/appointments/{id}/complete")
-    public Appointment complete(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
-        return operationalService.complete(jwt, id);
+    public AppointmentResponse complete(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        return operationalService.completeDto(jwt, id);
     }
 
     @PatchMapping("/appointments/{id}/cancel")
-    public Appointment cancel(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
-        return operationalService.cancelPatient(jwt, id);
+    public AppointmentResponse cancel(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        return operationalService.cancelPatientDto(jwt, id);
     }
 
     @GetMapping("/appointments/{id}/queue-position")
-    public Queue queuePosition(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
-        return operationalService.queuePosition(jwt, id);
+    public QueueResponse queuePosition(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        return operationalService.queuePositionDto(jwt, id);
     }
 
     @PostMapping("/queues/{id}/prioritise")
-    public Queue prioritise(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
-                            @Valid @RequestBody PriorityRequest request) {
-        return operationalService.prioritise(jwt, id, request);
+    public QueueResponse prioritise(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+                                    @Valid @RequestBody PriorityRequest request) {
+        return operationalService.prioritiseDto(jwt, id, request);
     }
 
     @PostMapping("/queues/call-next")
-    public Appointment callNext(@AuthenticationPrincipal Jwt jwt) {
-        return operationalService.callNext(jwt);
+    public AppointmentResponse callNext(@AuthenticationPrincipal Jwt jwt) {
+        return operationalService.callNextDto(jwt);
     }
 }

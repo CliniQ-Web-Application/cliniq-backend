@@ -1,8 +1,11 @@
 package com.cliniq.backend.service;
 
+import com.cliniq.backend.dto.PatientResponse;
 import com.cliniq.backend.model.Patient;
 import com.cliniq.backend.repository.PatientRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
@@ -35,6 +38,18 @@ public class PatientService {
         return patientRepository.findById(id).orElseThrow(() -> new RuntimeException("Patient not found with id: " + id));
     }
 
+    public Page<PatientResponse> getPatients(Pageable pageable) {
+        return patientRepository.findAll(pageable).map(PatientResponse::from);
+    }
+
+    public PatientResponse getPatientDto(UUID id) {
+        return PatientResponse.from(getPatientById(id));
+    }
+
+    public PatientResponse getOwnProfileDto(UUID authUserId) {
+        return PatientResponse.from(getOwnProfile(authUserId));
+    }
+
     public Patient getOwnProfile(UUID authUserId) {
         return patientRepository.findByAuthUserId(authUserId).orElseThrow(() ->
                 new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient profile not found"));
@@ -56,6 +71,15 @@ public class PatientService {
 
     public Patient createPatient(Patient patient, UUID authUserId) {
         return createPatient(patient, authUserId, null);
+    }
+
+    @Transactional
+    public PatientResponse createPatientDto(Patient patient, UUID authUserId, Jwt jwt) {
+        return PatientResponse.from(createPatient(patient, authUserId, jwt));
+    }
+
+    public PatientResponse updatePatientDto(UUID id, Patient patientDetails, Jwt jwt) {
+        return PatientResponse.from(updatePatient(id, patientDetails, jwt));
     }
 
     public Patient updatePatient(UUID id, Patient patientDetails, Jwt jwt) {

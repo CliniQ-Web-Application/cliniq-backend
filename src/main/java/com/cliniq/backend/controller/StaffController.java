@@ -1,21 +1,22 @@
 package com.cliniq.backend.controller;
 
+import com.cliniq.backend.dto.AvailabilityUpdateRequest;
+import com.cliniq.backend.dto.PageResponse;
 import com.cliniq.backend.dto.StaffRegistrationRequest;
-import com.cliniq.backend.enums.StaffRole;
+import com.cliniq.backend.dto.StaffResponse;
 import com.cliniq.backend.model.Staff;
-import com.cliniq.backend.repository.StaffRepository;
-import com.cliniq.backend.service.StaffService;
 import com.cliniq.backend.service.AccessPolicy;
+import com.cliniq.backend.service.OperationalService;
+import com.cliniq.backend.service.StaffService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
-import com.cliniq.backend.dto.AvailabilityUpdateRequest;
-import com.cliniq.backend.service.OperationalService;
 
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -23,26 +24,25 @@ import java.util.UUID;
 @RequestMapping("/api/staff")
 public class StaffController {
     private final StaffService staffService;
-    private final StaffRepository staffRepository;
     private final OperationalService operationalService;
     private final AccessPolicy accessPolicy;
 
-    public StaffController(StaffService staffService, StaffRepository staffRepository, OperationalService operationalService,
+    public StaffController(StaffService staffService, OperationalService operationalService,
                            AccessPolicy accessPolicy) {
         this.staffService = staffService;
-        this.staffRepository = staffRepository;
         this.operationalService = operationalService;
         this.accessPolicy = accessPolicy;
     }
 
     @GetMapping
-    public ResponseEntity<List<Staff>> getAll() {
-        return ResponseEntity.ok(staffService.getAllStaff());
+    public ResponseEntity<PageResponse<StaffResponse>> getAll(
+            @PageableDefault(size = 200, sort = "staffId") Pageable pageable) {
+        return ResponseEntity.ok(PageResponse.from(staffService.getStaffPage(pageable)));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Staff> getById(@PathVariable UUID id) {
-        return ResponseEntity.ok(staffService.getStaffById(id));
+    public ResponseEntity<StaffResponse> getById(@PathVariable UUID id) {
+        return ResponseEntity.ok(staffService.getStaffDto(id));
     }
 
     @PostMapping("/register")
@@ -51,21 +51,22 @@ public class StaffController {
             @Valid @RequestBody StaffRegistrationRequest request) {
 
         accessPolicy.requireAdmin(jwt);
-
         Staff created = staffService.registerStaff(request, jwt);
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("message", "Staff account created successfully.", "staffId", created.getStaffId()));
+        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
+                "message", "Staff account created successfully.",
+                "staffId", created.getStaffId()));
     }
 
     @PatchMapping("/me/availability")
-    public Staff updateAvailability(@AuthenticationPrincipal Jwt jwt,
-                                    @Valid @RequestBody AvailabilityUpdateRequest request) {
-        return operationalService.updateAvailability(jwt, request);
+    public StaffResponse updateAvailability(@AuthenticationPrincipal Jwt jwt,
+                                            @Valid @RequestBody AvailabilityUpdateRequest request) {
+        return operationalService.updateAvailabilityDto(jwt, request);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Staff> update(@PathVariable UUID id, @RequestBody Staff staff, @AuthenticationPrincipal Jwt jwt) {
-        return ResponseEntity.ok(staffService.updateStaff(id, staff, jwt));
+    public ResponseEntity<StaffResponse> update(@PathVariable UUID id, @RequestBody Staff staff,
+                                                @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(staffService.updateStaffDto(id, staff, jwt));
     }
 
     @DeleteMapping("/{id}")
