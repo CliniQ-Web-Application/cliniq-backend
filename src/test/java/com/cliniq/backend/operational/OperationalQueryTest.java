@@ -46,7 +46,13 @@ class OperationalQueryTest {
                                 if (method.getReturnType() == Double.class) {
                                     session.createQuery(hql, Double.class);
                                 } else {
-                                    session.createQuery(hql, Object.class);
+                                    var query = session.createQuery(hql, Object.class);
+                                    if (method.getName().equals("findAdminAppointments")) assertOptionalUuidBindings(query);
+                                }
+                                String countQuery = method.getAnnotation(Query.class).countQuery();
+                                if (!countQuery.isBlank()) {
+                                    var query = session.createQuery(countQuery, Long.class);
+                                    if (method.getName().equals("findAdminAppointments")) assertOptionalUuidBindings(query);
                                 }
                             }, method.getName()));
                 }
@@ -54,6 +60,77 @@ class OperationalQueryTest {
         } finally {
             StandardServiceRegistryBuilder.destroy(registry);
         }
+    }
+
+    private void assertOptionalUuidBindings(org.hibernate.query.Query<?> query) {
+        for (String parameter : new String[]{"departmentId", "doctorId"}) {
+            assertEquals(UUID.class, query.getParameter(parameter).getParameterType());
+            query.setParameter(parameter, null, UUID.class);
+            assertNull(query.getParameterValue(parameter));
+            UUID id = UUID.randomUUID();
+            query.setParameter(parameter, id, UUID.class);
+            assertEquals(id, query.getParameterValue(parameter));
+        }
+    }
+
+    @Test
+    void adminOptionalUuidNullChecksAreExplicitlyTypedInBothDataAndCountQueries() {
+        var method = Arrays.stream(AppointmentRepository.class.getDeclaredMethods())
+                .filter(candidate -> candidate.getName().equals("findAdminAppointments")).findFirst().orElseThrow();
+        var annotation = method.getAnnotation(Query.class);
+        for (String query : new String[]{annotation.value(), annotation.countQuery()}) {
+            assertTrue(query.contains("(cast(:departmentId as java.util.UUID) is null or"));
+            assertTrue(query.contains("(cast(:doctorId as java.util.UUID) is null or st.staffId = :doctorId)"));
+            assertFalse(query.contains("(:departmentId is null"));
+            assertFalse(query.contains("(:doctorId is null"));
+        }
+    }
+
+    @Test
+    void adminAppointmentQueryFiltersBeforePaginationWithInclusiveScheduledDateWalkInFallbackAndStableNewestOrder() throws Exception {
+        var method = Arrays.stream(AppointmentRepository.class.getDeclaredMethods())
+                .filter(candidate -> candidate.getName().equals("findAdminAppointments")).findFirst().orElseThrow();
+        var annotation = method.getAnnotation(Query.class);
+        String query = annotation.value().replaceAll("\\s+", " ").trim();
+        assertEquals("coalesce(a.bookedAt, a.createdAt) desc nulls last, a.appointmentId desc", query.split("order by ")[1]);
+        assertTrue(query.contains("coalesce(s.slotDate, cast(a.createdAt as LocalDate)) >= :fromDate"));
+        assertTrue(query.contains("coalesce(s.slotDate, cast(a.createdAt as LocalDate)) <= :toDate"));
+        for (String filter : new String[]{"a.appointmentStatus = :status", "else d.departmentId end = :departmentId", "st.staffId = :doctorId",
+                "p.patientName", "p.patientSurname", "p.patientEmail", "p.phone", "cast(a.appointmentId as string)"}) {
+            assertTrue(query.contains(filter), filter);
+            assertTrue(annotation.countQuery().contains(filter), filter);
+        }
+        assertTrue(org.springframework.data.domain.Page.class.isAssignableFrom(method.getReturnType()));
+        assertTrue(Arrays.asList(method.getParameterTypes()).contains(org.springframework.data.domain.Pageable.class));
+    }
+
+    @Test
+    void adminDepartmentFiltersAndBatchMappingUseSameSingleQueueWithoutMultiplyingPages() throws Exception {
+        var method = Arrays.stream(AppointmentRepository.class.getDeclaredMethods())
+                .filter(candidate -> candidate.getName().equals("findAdminAppointments")).findFirst().orElseThrow();
+        var annotation = method.getAnnotation(Query.class);
+        for (String hql : new String[]{annotation.value(), annotation.countQuery()}) {
+            assertTrue(hql.contains("case when s.slotId is null and exists (select 1 from Queue q where q.appointment = a)"));
+            assertTrue(hql.contains("then (select q.department.departmentId from Queue q where q.appointment = a and"));
+            assertTrue(hql.contains("else d.departmentId end = :departmentId"));
+            assertTrue(hql.contains(QueueRepository.ADMIN_FIRST_QUEUE));
+            assertFalse(hql.substring(0, hql.indexOf("where")).contains("Queue"), "Queue must not join the paged/count root");
+        }
+        String batch = QueueRepository.class.getMethod("findAdminDepartmentsByAppointmentIds", java.util.Collection.class)
+                .getAnnotation(Query.class).value();
+        assertTrue(batch.contains("select q.appointment.appointmentId, d from Queue q"));
+        assertTrue(batch.contains("left join q.department d"), "A queue with a missing department must not trigger staff fallback");
+        assertTrue(batch.contains("q.appointment.appointmentId in :appointmentIds and q.appointment.slot is null"));
+        assertTrue(batch.contains(QueueRepository.ADMIN_FIRST_QUEUE));
+        assertTrue(QueueRepository.ADMIN_FIRST_QUEUE.contains("earlier.appointment = q.appointment and earlier.queueId < q.queueId"));
+    }
+
+    @Test
+    void broadcastQueryTargetsOneWindowAndOnlyRequestedStatuses() throws Exception {
+        String query = AppointmentRepository.class.getMethod("findBroadcastRecipients", UUID.class, java.util.Collection.class)
+                .getAnnotation(Query.class).value();
+        assertTrue(query.contains("a.slot.slotId = :slotId and a.appointmentStatus in :statuses"));
+        assertTrue(query.contains("join fetch a.patient"));
     }
 
     @Test

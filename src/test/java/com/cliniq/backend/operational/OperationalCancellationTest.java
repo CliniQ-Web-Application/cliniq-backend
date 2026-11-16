@@ -27,6 +27,45 @@ import static org.mockito.Mockito.*;
 
 class OperationalCancellationTest extends OperationalFixture {
     @Test
+    void adminCancellationReusesSlotFirstCoreAndAuditsTheAdminActor() {
+        Appointment appointment = entry(1, AppointmentStatus.BOOKED).getAppointment();
+        var slot = slot(appointment);
+        var adminJwt = jwt(UUID.randomUUID());
+        assertSame(appointment, service.cancelAdmin(adminJwt, appointment.getAppointmentId()));
+        var order = inOrder(policy, appointments, schedules, audit);
+        order.verify(policy).requireAdmin(adminJwt);
+        order.verify(appointments).findSlotIdByAppointmentId(appointment.getAppointmentId());
+        order.verify(schedules).findByIdForUpdate(slot.getSlotId());
+        order.verify(appointments).findByIdForUpdate(appointment.getAppointmentId());
+        order.verify(appointments).saveAndFlush(appointment);
+        order.verify(appointments).countOccupyingBySlotId(slot.getSlotId());
+        order.verify(schedules).saveAndFlush(slot);
+        order.verify(audit).record("APPOINTMENT_CANCELLED", "Administrator cancelled appointment", "Appointment", appointment.getAppointmentId(), adminJwt);
+        assertEquals(AppointmentStatus.CANCELLED, appointment.getAppointmentStatus());
+        assertEquals(SlotStatus.OPEN, slot.getSlotStatus());
+        assertThrows(ResponseStatusException.class, () -> service.cancelAdmin(adminJwt, appointment.getAppointmentId()));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = AppointmentStatus.class, names = "BOOKED", mode = EnumSource.Mode.EXCLUDE)
+    void adminAlsoCannotCancelOtherStates(AppointmentStatus status) {
+        Appointment appointment = entry(1, status).getAppointment();
+        slot(appointment);
+        assertEquals(HttpStatus.CONFLICT, assertThrows(ResponseStatusException.class,
+                () -> service.cancelAdmin(jwt, appointment.getAppointmentId())).getStatusCode());
+        verify(appointments, never()).saveAndFlush(any());
+        verifyNoInteractions(audit);
+    }
+
+    @Test
+    void adminAuthorizationFailsBeforeAnyLockOrRead() {
+        doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN)).when(policy).requireAdmin(jwt);
+        assertEquals(HttpStatus.FORBIDDEN, assertThrows(ResponseStatusException.class,
+                () -> service.cancelAdmin(jwt, UUID.randomUUID())).getStatusCode());
+        verifyNoInteractions(appointments, schedules, audit);
+    }
+
+    @Test
     void locksSlotThenReloadsAppointmentBeforeMutationFlushCountAndAudit() {
         Appointment appointment = entry(1, AppointmentStatus.BOOKED).getAppointment();
         var slot = slot(appointment);
@@ -166,7 +205,7 @@ class OperationalCancellationTest extends OperationalFixture {
 
     /** Exercises Spring transaction boundaries; no claim of real database rollback. */
     @ParameterizedTest
-    @ValueSource(strings = {"none", "appointment", "slot", "audit"})
+    @ValueSource(strings = {"none", "appointment", "slot", "audit", "admin-none", "admin-appointment", "admin-slot", "admin-audit"})
     void cancellationSlotAndAuditShareCommitOrRollback(String failure) {
         Appointment appointment = entry(1, AppointmentStatus.BOOKED).getAppointment();
         var slot = slot(appointment);
@@ -175,16 +214,20 @@ class OperationalCancellationTest extends OperationalFixture {
             assertFalse(call.<TransactionDefinition>getArgument(0).isReadOnly());
             return new SimpleTransactionStatus();
         });
-        if (failure.equals("appointment")) when(appointments.saveAndFlush(any())).thenThrow(new IllegalStateException());
-        if (failure.equals("slot")) when(schedules.saveAndFlush(any())).thenThrow(new IllegalStateException());
-        if (failure.equals("audit")) doThrow(new IllegalStateException()).when(audit)
+        if (failure.endsWith("appointment")) when(appointments.saveAndFlush(any())).thenThrow(new IllegalStateException());
+        if (failure.endsWith("slot")) when(schedules.saveAndFlush(any())).thenThrow(new IllegalStateException());
+        if (failure.endsWith("audit")) doThrow(new IllegalStateException()).when(audit)
                 .record(anyString(), anyString(), anyString(), any(), any());
         ProxyFactory factory = new ProxyFactory(service);
         factory.setProxyTargetClass(true);
         factory.addAdvice(new TransactionInterceptor(transactions, new AnnotationTransactionAttributeSource()));
         OperationalService proxy = (OperationalService) factory.getProxy();
-        if (failure.equals("none")) {
-            proxy.cancelPatient(jwt, appointment.getAppointmentId());
+        Runnable cancel = () -> {
+            if (failure.startsWith("admin-")) proxy.cancelAdmin(jwt, appointment.getAppointmentId());
+            else proxy.cancelPatient(jwt, appointment.getAppointmentId());
+        };
+        if (failure.endsWith("none")) {
+            cancel.run();
             var order = inOrder(appointments, schedules, audit, transactions);
             order.verify(appointments).saveAndFlush(appointment);
             order.verify(schedules).saveAndFlush(slot);
@@ -192,7 +235,7 @@ class OperationalCancellationTest extends OperationalFixture {
             order.verify(transactions).commit(any(TransactionStatus.class));
             verify(transactions, never()).rollback(any());
         } else {
-            assertThrows(IllegalStateException.class, () -> proxy.cancelPatient(jwt, appointment.getAppointmentId()));
+            assertThrows(IllegalStateException.class, cancel::run);
             verify(transactions).rollback(any());
             verify(transactions, never()).commit(any());
         }

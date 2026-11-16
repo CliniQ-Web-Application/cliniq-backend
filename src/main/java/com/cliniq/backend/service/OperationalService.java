@@ -165,6 +165,16 @@ public class OperationalService {
     @Transactional
     public Appointment cancelPatient(Jwt jwt, UUID appointmentId) {
         AccessPolicy.subject(jwt);
+        return cancel(jwt, appointmentId, false);
+    }
+
+    @Transactional
+    public Appointment cancelAdmin(Jwt jwt, UUID appointmentId) {
+        accessPolicy.requireAdmin(jwt);
+        return cancel(jwt, appointmentId, true);
+    }
+
+    private Appointment cancel(Jwt jwt, UUID appointmentId, boolean admin) {
         // Match booking's slot-first lock order. Do not load/mutate the appointment before
         // this lock: a concurrent cancellation may commit while we wait for the slot.
         Schedule slot = appointments.findSlotIdByAppointmentId(appointmentId)
@@ -173,7 +183,7 @@ public class OperationalService {
                 .orElse(null);
         Appointment appointment = appointments.findByIdForUpdate(appointmentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found."));
-        if (!ownsAppointment(jwt, appointment)) {
+        if (!admin && !ownsAppointment(jwt, appointment)) {
             throw forbidden("You can only cancel your own appointments.");
         }
         if (appointment.getAppointmentStatus() != AppointmentStatus.BOOKED) {
@@ -186,7 +196,8 @@ public class OperationalService {
             slot.setSlotStatus(SlotStatus.OPEN);
             schedules.saveAndFlush(slot);
         }
-        auditLogsService.record("APPOINTMENT_CANCELLED", "Patient cancelled appointment", "Appointment", saved.getAppointmentId(), jwt);
+        auditLogsService.record("APPOINTMENT_CANCELLED", admin ? "Administrator cancelled appointment" : "Patient cancelled appointment",
+                        "Appointment", saved.getAppointmentId(), jwt);
         return saved;
     }
 

@@ -181,7 +181,7 @@ public class BookingService {
         var department = doctor.getDepartment();
         return new BookingAvailability(slot.getSlotId(), slot.getSlotDate(), slot.getStartTime(), slot.getEndTime(),
                 slot.getSlotStatus(), new BookingAvailability.Doctor(doctor.getStaffId(), doctor.getFirstName(),
-                doctor.getLastName(), doctor.getStaffRole(), true,
+                doctor.getLastName(), doctor.getStaffRole(), doctor.getAvailabilityStatus(), true,
                 new BookingAvailability.Department(department.getDepartmentId(), department.getName())),
                 slot.effectiveCapacity(), bookedCount);
     }

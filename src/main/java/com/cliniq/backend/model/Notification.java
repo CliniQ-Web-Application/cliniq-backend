@@ -15,7 +15,7 @@ public class Notification {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID notificationId;
 
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "text")
     private String message;
 
     @Column(nullable = false)

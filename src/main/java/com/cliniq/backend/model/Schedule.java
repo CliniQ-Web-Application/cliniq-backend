@@ -1,6 +1,9 @@
 package com.cliniq.backend.model;
 
 import com.cliniq.backend.enums.SlotStatus;
+import com.fasterxml.jackson.annotation.JsonSetter;
+import com.cliniq.backend.config.WholeNumberDeserializer;
+import tools.jackson.databind.annotation.JsonDeserialize;
 import jakarta.persistence.*;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -52,6 +55,16 @@ public class Schedule {
 
     public Integer getCapacity() { return capacity; }
     public void setCapacity(Integer capacity) { this.capacity = capacity; }
+
+    @JsonSetter("capacity")
+    @JsonDeserialize(using = WholeNumberDeserializer.class)
+    public void readCapacity(Number value) {
+        if (value != null && (!(value instanceof Integer || value instanceof Long)
+                || value.longValue() > Integer.MAX_VALUE || value.longValue() < Integer.MIN_VALUE)) {
+            throw new IllegalArgumentException("capacity must be a whole number");
+        }
+        this.capacity = value == null ? null : value.intValue();
+    }
 
     // The effective booking limit; null means the legacy single-appointment behaviour.
     public int effectiveCapacity() { return capacity == null ? 1 : capacity; }

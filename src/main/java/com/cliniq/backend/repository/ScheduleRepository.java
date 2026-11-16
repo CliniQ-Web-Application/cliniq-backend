@@ -16,6 +16,8 @@ import java.util.UUID;
 
 @Repository
 public interface ScheduleRepository extends JpaRepository<Schedule, UUID> {
+    @Query("select s from Schedule s left join fetch s.staff st left join fetch st.department order by s.slotDate, s.startTime, s.slotId")
+    List<Schedule> findAllForAdmin();
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select s from Schedule s where s.slotId = :id")
     Optional<Schedule> findByIdForUpdate(@Param("id") UUID id);

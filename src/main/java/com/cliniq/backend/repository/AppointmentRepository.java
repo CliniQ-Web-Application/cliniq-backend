@@ -15,6 +15,46 @@ import java.util.UUID;
 
 @Repository
 public interface AppointmentRepository extends JpaRepository<Appointment, UUID> {
+    String ADMIN_FROM = """
+            from Appointment a
+            left join a.slot s
+            left join a.staff st
+            left join st.department d
+            left join a.patient p
+            where (cast(:fromDate as LocalDate) is null or coalesce(s.slotDate, cast(a.createdAt as LocalDate)) >= :fromDate)
+              and (cast(:toDate as LocalDate) is null or coalesce(s.slotDate, cast(a.createdAt as LocalDate)) <= :toDate)
+              and (:status is null or a.appointmentStatus = :status)
+              and (cast(:departmentId as java.util.UUID) is null or
+                   case when s.slotId is null and exists (select 1 from Queue q where q.appointment = a)
+                        then (select q.department.departmentId from Queue q where q.appointment = a and
+            """ + QueueRepository.ADMIN_FIRST_QUEUE + """
+                             )
+                        else d.departmentId end = :departmentId)
+              and (cast(:doctorId as java.util.UUID) is null or st.staffId = :doctorId)
+              and (:search is null
+                or lower(concat(coalesce(p.patientName, ''), ' ', coalesce(p.patientSurname, ''))) like :search escape '!'
+                or lower(coalesce(p.patientEmail, '')) like :search escape '!'
+                or lower(coalesce(p.phone, '')) like :search escape '!'
+                or lower(concat(coalesce(st.firstName, ''), ' ', coalesce(st.lastName, ''))) like :search escape '!'
+                or lower(cast(a.appointmentId as string)) like :search escape '!')
+            """;
+
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"slot", "staff", "staff.department", "patient"})
+    @Query(value = "select a " + ADMIN_FROM + " order by coalesce(a.bookedAt, a.createdAt) desc nulls last, a.appointmentId desc",
+            countQuery = "select count(a) " + ADMIN_FROM)
+    org.springframework.data.domain.Page<Appointment> findAdminAppointments(
+            @Param("fromDate") java.time.LocalDate from, @Param("toDate") java.time.LocalDate to,
+            @Param("status") com.cliniq.backend.enums.AppointmentStatus status,
+            @Param("departmentId") UUID departmentId, @Param("doctorId") UUID doctorId,
+            @Param("search") String search, org.springframework.data.domain.Pageable pageable);
+
+    @Query("""
+            select a from Appointment a join fetch a.patient
+            where a.slot.slotId = :slotId and a.appointmentStatus in :statuses
+            order by a.appointmentId
+            """)
+    List<Appointment> findBroadcastRecipients(@Param("slotId") UUID slotId,
+            @Param("statuses") Collection<com.cliniq.backend.enums.AppointmentStatus> statuses);
     @Query("""
             select distinct a from Appointment a
             join fetch a.staff st
