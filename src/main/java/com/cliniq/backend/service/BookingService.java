@@ -188,9 +188,16 @@ public class BookingService {
     private BookingResponse response(Appointment appointment) {
         Schedule slot = appointment.getSlot();
         Staff doctor = appointment.getStaff();
-        return new BookingResponse(appointment.getAppointmentId(), appointment.getAppointmentStatus(), slot.getSlotId(),
+
+        return new BookingResponse(
+                appointment.getAppointmentId(), appointment.getAppointmentStatus(), slot.getSlotId(),
                 slot.getSlotDate(), slot.getStartTime(), slot.getEndTime(), appointment.getAppointmentTime(),
                 doctor.getDepartment() == null ? null : doctor.getDepartment().getName(),
-                doctor.getFirstName() + " " + doctor.getLastName(), appointment.getBookedAt());
+                doctor.getFirstName() + " " + doctor.getLastName(), appointment.getBookedAt(),
+                appointment.getCheckInTime(),
+                appointment.getCalledTime(),
+                appointment.getCompletedTime(),
+                appointment.getPriority() != null ? appointment.getPriority().name() : null
+        );
     }
 }
