@@ -54,20 +54,33 @@ public class PatientController {
         return patientService.createPatient(profile(request, jwt), userId, jwt);
     }
 
+    @PutMapping("/me")
+    public Patient updateOwnProfile(@AuthenticationPrincipal Jwt jwt,
+                                    @Valid @RequestBody PatientProfileRequest request) {
+        UUID userId = AccessPolicy.subject(jwt);
+        accessPolicy.requirePatient(userId);
+        return patientService.updateOwnProfile(userId, profile(request), jwt);
+    }
+
     private Patient profile(PatientProfileRequest request, Jwt jwt) {
-        if (request == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Patient profile details are required");
-        }
         String email = jwt.getClaimAsString("email");
         if (email == null || !email.matches("[^\\s@]+@[^\\s@]+\\.[^\\s@]+") || email.length() > 255) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A valid email is required on your sign-in account");
+        }
+        Patient patient = profile(request);
+        patient.setPatientEmail(email);
+        return patient;
+    }
+
+    private Patient profile(PatientProfileRequest request) {
+        if (request == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Patient profile details are required");
         }
         Patient patient = new Patient();
         patient.setPatientName(required(request.patientName(), "First name"));
         patient.setPatientSurname(required(request.patientSurname(), "Surname"));
         patient.setNationalID(required(request.nationalID(), "National ID"));
         patient.setPhone(required(request.phone(), "Phone"));
-        patient.setPatientEmail(email);
         return patient;
     }
 

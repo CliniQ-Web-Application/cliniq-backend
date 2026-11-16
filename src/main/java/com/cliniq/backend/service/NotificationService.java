@@ -1,5 +1,6 @@
 package com.cliniq.backend.service;
 
+import com.cliniq.backend.dto.NotificationResponse;
 import com.cliniq.backend.model.Appointment;
 import com.cliniq.backend.model.Notification;
 import com.cliniq.backend.model.Patient;
@@ -8,7 +9,10 @@ import com.cliniq.backend.repository.NotificationRepository;
 import com.cliniq.backend.repository.PatientRepository;
 import com.cliniq.backend.repository.StaffRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.UUID;
@@ -20,11 +24,32 @@ public class NotificationService {
     private final PatientRepository patientRepository;
     private final AuditLogsService auditLogsService;
 
-    public List<Notification> getMyNotifications(UUID authUserId) {
-        if (staffRepository.findByAuthUserId(authUserId).isPresent()) {
-            return notificationRepository.findByStaff_AuthUserIdOrderByCreatedAtDesc(authUserId);
+    @Transactional(readOnly = true)
+    public List<NotificationResponse> getMyNotifications(UUID authUserId) {
+        List<Notification> notifications = staffRepository.findByAuthUserId(authUserId).isPresent()
+                ? notificationRepository.findByStaff_AuthUserIdOrderByCreatedAtDesc(authUserId)
+                : notificationRepository.findByPatient_AuthUserIdOrderByCreatedAtDesc(authUserId);
+        return notifications.stream().map(NotificationResponse::from).toList();
+    }
+
+    @Transactional
+    public NotificationResponse markAsRead(UUID authUserId, UUID id) {
+        if (authUserId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "A valid authenticated user is required");
         }
-        return notificationRepository.findByPatient_AuthUserIdOrderByCreatedAtDesc(authUserId);
+        Notification notification = notificationRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Notification not found"));
+        boolean owned = staffRepository.findByAuthUserId(authUserId).isPresent()
+                ? notification.getStaff() != null && authUserId.equals(notification.getStaff().getAuthUserId())
+                : notification.getPatient() != null && authUserId.equals(notification.getPatient().getAuthUserId());
+        if (!owned) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Notification belongs to another user");
+        }
+        if (!Boolean.TRUE.equals(notification.getIsRead())) {
+            notification.setIsRead(true);
+            notificationRepository.save(notification);
+        }
+        return NotificationResponse.from(notification);
     }
 
     @Autowired

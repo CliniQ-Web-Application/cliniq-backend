@@ -64,7 +64,7 @@ class BookingCapacityTest {
 
     @Test
     void windowAcceptsMultipleBookingsUntilCapacityThenCloses() {
-        when(appointments.countBySlot_SlotId(window.getSlotId())).thenReturn(0L, 1L, 2L);
+        when(appointments.countOccupyingBySlotId(window.getSlotId())).thenReturn(0L, 1L, 2L);
         service.book(userId, window.getSlotId());
         assertEquals(SlotStatus.OPEN, window.getSlotStatus());
         verify(schedules, never()).saveAndFlush(any());
@@ -83,7 +83,7 @@ class BookingCapacityTest {
         Schedule full = windowSlot();
         full.setSlotId(UUID.randomUUID());
         when(schedules.findBookingCandidates(SlotStatus.OPEN, LocalDate.of(2030, 1, 1))).thenReturn(List.of(full));
-        when(appointments.countBySlotIds(any())).thenReturn(Collections.singletonList(
+        when(appointments.countOccupyingBySlotIds(any())).thenReturn(Collections.singletonList(
                 new Object[]{full.getSlotId(), 2L}));
         assertTrue(service.availability(userId).isEmpty());
     }
@@ -91,7 +91,7 @@ class BookingCapacityTest {
     @Test
     void availabilityReportsEffectiveCapacityAndBookedCount() {
         when(schedules.findBookingCandidates(SlotStatus.OPEN, LocalDate.of(2030, 1, 1))).thenReturn(List.of(window));
-        when(appointments.countBySlotIds(any())).thenReturn(Collections.singletonList(
+        when(appointments.countOccupyingBySlotIds(any())).thenReturn(Collections.singletonList(
                 new Object[]{window.getSlotId(), 1L}));
         var result = service.availability(userId);
         assertEquals(1, result.size());
@@ -102,7 +102,7 @@ class BookingCapacityTest {
     @Test
     void legacySlotWithoutCapacityBooksOnce() {
         window.setCapacity(null);
-        when(appointments.countBySlot_SlotId(window.getSlotId())).thenReturn(0L);
+        when(appointments.countOccupyingBySlotId(window.getSlotId())).thenReturn(0L);
         service.book(userId, window.getSlotId());
         assertEquals(SlotStatus.BOOKED, window.getSlotStatus());
         assertEquals(1, window.effectiveCapacity());
