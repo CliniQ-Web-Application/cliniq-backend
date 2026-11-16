@@ -56,4 +56,14 @@ public class OperationalController {
     public AppointmentResponse callNext(@AuthenticationPrincipal Jwt jwt) {
         return operationalService.callNextDto(jwt);
     }
+
+    @PostMapping("/appointments/{id}/no-show")
+    public AppointmentResponse markNoShow(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        return operationalService.markNoShowDto(jwt, id);
+    }
+
+    @PostMapping("/appointments/{id}/staff-cancel")
+    public AppointmentResponse cancelByStaff(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        return operationalService.cancelByStaffDto(jwt, id);
+    }
 }

@@ -102,6 +102,24 @@ public class OperationalService {
     }
 
     @Transactional
+    public AppointmentResponse markNoShowDto(Jwt jwt, UUID appointmentId) {
+        requireStaff(jwt);
+        Appointment appointment = appointment(appointmentId);
+        appointment.setAppointmentStatus(AppointmentStatus.NOSHOW);
+        Appointment saved = appointments.save(appointment);
+        return AppointmentResponse.from(saved);
+    }
+
+    @Transactional
+    public AppointmentResponse cancelByStaffDto(Jwt jwt, UUID appointmentId) {
+        requireStaff(jwt);
+        Appointment appointment = appointment(appointmentId);
+        appointment.setAppointmentStatus(AppointmentStatus.CANCELLED);
+        Appointment saved = appointments.save(appointment);
+        return AppointmentResponse.from(saved);
+    }
+
+    @Transactional
     public Queue prioritise(Jwt jwt, UUID queueId, PriorityRequest request) {
         requireStaff(jwt);
         Queue queue = queue(queueId);

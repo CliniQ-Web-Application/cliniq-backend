@@ -6,7 +6,6 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.UUID;
 
-/** Appointment projection with nested DTOs, free of JPA proxies and internal ids. */
 public record AppointmentResponse(
         UUID appointmentId,
         String appointmentStatus,
