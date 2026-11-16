@@ -1,11 +1,13 @@
 package com.cliniq.backend.controller;
 
-import com.cliniq.backend.model.AuditLogs;
+import com.cliniq.backend.dto.AuditLogResponse;
+import com.cliniq.backend.dto.PageResponse;
 import com.cliniq.backend.service.AuditLogsService;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -18,13 +20,13 @@ public class AuditLogsController {
     }
 
     @GetMapping
-    public ResponseEntity<List<AuditLogs>> getAll() {
-        return ResponseEntity.ok(auditLogsService.getAllAuditLogs());
+    public ResponseEntity<PageResponse<AuditLogResponse>> getAll(
+            @PageableDefault(size = 200, sort = "createdAt") Pageable pageable) {
+        return ResponseEntity.ok(PageResponse.from(auditLogsService.getAuditLogs(pageable)));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<AuditLogs> getById(@PathVariable UUID id) {
-        return ResponseEntity.ok(auditLogsService.getAuditLogById(id));
+    public ResponseEntity<AuditLogResponse> getById(@PathVariable UUID id) {
+        return ResponseEntity.ok(auditLogsService.getAuditLogDto(id));
     }
-
 }

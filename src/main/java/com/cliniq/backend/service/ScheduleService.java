@@ -1,7 +1,10 @@
 package com.cliniq.backend.service;
 
+import com.cliniq.backend.dto.ScheduleResponse;
 import com.cliniq.backend.model.Schedule;
 import com.cliniq.backend.enums.SlotStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import com.cliniq.backend.repository.AppointmentRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
@@ -67,6 +70,16 @@ public class ScheduleService {
         return scheduleRepository.findById(id).orElseThrow(() -> new RuntimeException("Schedule not found with id: " + id));
     }
 
+    @Transactional(readOnly = true)
+    public Page<ScheduleResponse> getSchedules(Pageable pageable) {
+        return scheduleRepository.findAllForList(pageable).map(ScheduleResponse::from);
+    }
+
+    @Transactional(readOnly = true)
+    public ScheduleResponse getScheduleDto(UUID id) {
+        return ScheduleResponse.from(getScheduleById(id));
+    }
+
     @Transactional
     public Schedule createSchedule(Schedule schedule) {
         if (schedule.getSlotId() != null) {
@@ -74,6 +87,16 @@ public class ScheduleService {
         }
         rejectBookedStatus(schedule);
         return scheduleRepository.save(schedule);
+    }
+
+    @Transactional
+    public ScheduleResponse createScheduleDto(Jwt jwt, Schedule schedule) {
+        return ScheduleResponse.from(createForStaff(jwt, schedule));
+    }
+
+    @Transactional
+    public ScheduleResponse updateScheduleDto(UUID id, Schedule details, Jwt jwt) {
+        return ScheduleResponse.from(updateSchedule(id, details, jwt));
     }
 
     @Transactional

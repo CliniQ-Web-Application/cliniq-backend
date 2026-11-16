@@ -3,6 +3,8 @@ package com.cliniq.backend.repository;
 import com.cliniq.backend.enums.SlotStatus;
 import com.cliniq.backend.model.Schedule;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -27,4 +29,8 @@ public interface ScheduleRepository extends JpaRepository<Schedule, UUID> {
             order by s.slotDate, s.startTime, s.slotId
             """)
     List<Schedule> findBookingCandidates(@Param("status") SlotStatus status, @Param("today") LocalDate today);
+
+    @Query(value = "select s from Schedule s join fetch s.staff st left join fetch st.department",
+           countQuery = "select count(s) from Schedule s")
+    Page<Schedule> findAllForList(Pageable pageable);
 }

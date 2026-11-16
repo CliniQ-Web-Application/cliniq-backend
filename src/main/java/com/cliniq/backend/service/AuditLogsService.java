@@ -1,7 +1,10 @@
 package com.cliniq.backend.service;
 
+import com.cliniq.backend.dto.AuditLogResponse;
 import com.cliniq.backend.model.AuditLogs;
 import com.cliniq.backend.model.Staff;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import com.cliniq.backend.repository.AuditLogsRepository;
 import com.cliniq.backend.repository.StaffRepository;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -28,6 +31,16 @@ public class AuditLogsService {
 
     public AuditLogs getAuditLogById(UUID id) {
         return auditLogsRepository.findById(id).orElseThrow(() -> new RuntimeException("AuditLog not found with id: " + id));
+    }
+
+    @Transactional(readOnly = true)
+    public Page<AuditLogResponse> getAuditLogs(Pageable pageable) {
+        return auditLogsRepository.findAllForList(pageable).map(AuditLogResponse::from);
+    }
+
+    @Transactional(readOnly = true)
+    public AuditLogResponse getAuditLogDto(UUID id) {
+        return AuditLogResponse.from(getAuditLogById(id));
     }
 
     @Transactional
