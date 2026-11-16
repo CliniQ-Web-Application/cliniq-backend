@@ -12,11 +12,26 @@ import com.cliniq.backend.enums.AppointmentStatus;
 import com.cliniq.backend.model.Appointment;
 import com.cliniq.backend.model.Department;
 import java.util.UUID;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 @Repository
 public interface QueueRepository extends JpaRepository<Queue, UUID> {
+    // Legacy data can contain multiple queue rows. Use the same stable row for filtering and DTOs.
+    String ADMIN_FIRST_QUEUE = """
+            not exists (select 1 from Queue earlier
+                        where earlier.appointment = q.appointment and earlier.queueId < q.queueId)
+            """;
+
+    @Query("""
+            select q.appointment.appointmentId, d from Queue q
+            left join q.department d
+            where q.appointment.appointmentId in :appointmentIds and q.appointment.slot is null
+              and
+            """ + ADMIN_FIRST_QUEUE)
+    List<Object[]> findAdminDepartmentsByAppointmentIds(@Param("appointmentIds") Collection<UUID> appointmentIds);
+
     Optional<Queue> findByAppointment(Appointment appointment);
 
     @Query(value = """

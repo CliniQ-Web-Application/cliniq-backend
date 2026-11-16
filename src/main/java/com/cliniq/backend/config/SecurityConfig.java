@@ -22,6 +22,10 @@ public class SecurityConfig {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/", "/error").permitAll()
+                        .requestMatchers("/api/admin", "/api/admin/**")
+                        .access((authentication, context) -> new AuthorizationDecision(accessPolicy.isStaff(authentication.get(), true)))
+                        .requestMatchers(HttpMethod.POST, "/api/schedules/*/broadcast")
+                        .access((authentication, context) -> new AuthorizationDecision(accessPolicy.isDoctorOrAdmin(authentication.get())))
                         .requestMatchers("/api/bookings/**", "/api/patients/me").authenticated()
                         .requestMatchers("/api/appointments/*/check-in", "/api/appointments/*/cancel",
                                 "/api/appointments/*/queue-position", "/api/appointments/*/qr").authenticated()
