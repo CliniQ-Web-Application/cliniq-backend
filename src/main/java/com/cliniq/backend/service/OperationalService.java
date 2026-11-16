@@ -120,6 +120,23 @@ public class OperationalService {
     }
 
     @Transactional
+    public void broadcastDelay(Jwt jwt, String delayMessage) {
+        Staff current = requireStaff(jwt);
+
+        List<Queue> waiting = queues.findByDepartmentAndAppointmentStatus(
+                current.getDepartment(), AppointmentStatus.WAITING);
+
+        for (Queue q : waiting) {
+            notificationService.notifyPatient(
+                    q.getAppointment().getPatient(),
+                    q.getAppointment(),
+                    "DELAY_ALERT",
+                    delayMessage
+            );
+        }
+    }
+
+    @Transactional
     public Queue prioritise(Jwt jwt, UUID queueId, PriorityRequest request) {
         requireStaff(jwt);
         Queue queue = queue(queueId);

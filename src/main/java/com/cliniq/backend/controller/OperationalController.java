@@ -6,10 +6,12 @@ import com.cliniq.backend.dto.QueueResponse;
 import com.cliniq.backend.dto.WalkInRequest;
 import com.cliniq.backend.service.OperationalService;
 import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -65,5 +67,11 @@ public class OperationalController {
     @PostMapping("/appointments/{id}/staff-cancel")
     public AppointmentResponse cancelByStaff(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
         return operationalService.cancelByStaffDto(jwt, id);
+    }
+
+    @PostMapping("/queues/broadcast-delay")
+    public ResponseEntity<Void> broadcastDelay(@AuthenticationPrincipal Jwt jwt, @RequestBody Map<String, String> body) {
+        operationalService.broadcastDelay(jwt, body.get("message"));
+        return ResponseEntity.ok().build();
     }
 }
