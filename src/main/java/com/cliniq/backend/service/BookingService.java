@@ -122,7 +122,7 @@ public class BookingService {
         }
         com.cliniq.backend.model.Notification staffNotification = new com.cliniq.backend.model.Notification();
         staffNotification.setAppointment(appointment);
-        staffNotification.setMessage("A neew appointment has been booked: " + patient.getPatientName());
+        staffNotification.setMessage("A new appointment has been booked: " + patient.getPatientName());
         staffNotification.setType("NEW_BOOKING");
         staffNotification.setIsRead(false);
         staffNotification.setCreatedAt(LocalDateTime.now());
