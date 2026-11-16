@@ -74,7 +74,7 @@ public class BookingService {
         }
         // One grouped query supplies the counts used both for display and for hiding full windows.
         Map<UUID, Long> counts = new HashMap<>();
-        for (Object[] row : appointments.countBySlotIds(candidates.stream().map(Schedule::getSlotId).toList())) {
+        for (Object[] row : appointments.countOccupyingBySlotIds(candidates.stream().map(Schedule::getSlotId).toList())) {
             counts.put((UUID) row[0], ((Number) row[1]).longValue());
         }
         return candidates.stream()
@@ -98,7 +98,7 @@ public class BookingService {
         if (appointmentTime == null) appointmentTime = slot.getStartTime();
         // Read time only after acquiring the lock: a waiter may cross the slot start time.
         Instant now = clock.instant();
-        long booked = appointments.countBySlot_SlotId(slot.getSlotId());
+        long booked = appointments.countOccupyingBySlotId(slot.getSlotId());
         if (!isBookable(slot, now) || booked >= slot.effectiveCapacity()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Slot is no longer available for booking");
         }
@@ -122,7 +122,8 @@ public class BookingService {
         }
         com.cliniq.backend.model.Notification staffNotification = new com.cliniq.backend.model.Notification();
         staffNotification.setAppointment(appointment);
-        staffNotification.setMessage("A neew appointment has been booked: " + patient.getPatientName());
+        staffNotification.setStaff(slot.getStaff());
+        staffNotification.setMessage("A new appointment has been booked: " + patient.getPatientName());
         staffNotification.setType("NEW_BOOKING");
         staffNotification.setIsRead(false);
         staffNotification.setCreatedAt(LocalDateTime.now());

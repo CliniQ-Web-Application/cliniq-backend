@@ -18,6 +18,18 @@ public interface QueueRepository extends JpaRepository<Queue, UUID> {
     Optional<Queue> findByAppointment(Appointment appointment);
 
     @Query("""
+            select avg(timestampdiff(nanosecond, a.calledTime, a.completedTime)) / 1000000000.0
+            from Queue q
+            join q.appointment a
+            where q.department = :department
+              and a.appointmentStatus = com.cliniq.backend.enums.AppointmentStatus.COMPLETED
+              and a.calledTime is not null and a.completedTime is not null
+              and a.completedTime > a.calledTime
+            """)
+    // Aggregate in the database; nanoseconds preserve positive sub-second consultations.
+    Double averageCompletedConsultationSeconds(@Param("department") Department department);
+
+    @Query("""
             select count(q) from Queue q
             where q.department = :department
               and q.appointment.appointmentStatus = :status

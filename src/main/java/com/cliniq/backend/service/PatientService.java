@@ -58,6 +58,18 @@ public class PatientService {
         return createPatient(patient, authUserId, null);
     }
 
+    @Transactional
+    public Patient updateOwnProfile(UUID authUserId, Patient patientDetails, Jwt jwt) {
+        Patient patient = getOwnProfile(authUserId);
+        patient.setPatientName(patientDetails.getPatientName());
+        patient.setPatientSurname(patientDetails.getPatientSurname());
+        patient.setNationalID(patientDetails.getNationalID());
+        patient.setPhone(patientDetails.getPhone());
+        Patient saved = patientRepository.save(patient);
+        if (auditLogsService != null) auditLogsService.record("PATIENT_PROFILE_UPDATED", "Patient profile updated", "Patient", saved.getPatientID(), jwt);
+        return saved;
+    }
+
     public Patient updatePatient(UUID id, Patient patientDetails, Jwt jwt) {
         Patient patient = getPatientById(id);
         patient.setPatientName(patientDetails.getPatientName());

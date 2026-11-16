@@ -2,25 +2,30 @@ package com.cliniq.backend.service;
 
 import com.cliniq.backend.dto.AvailabilityUpdateRequest;
 import com.cliniq.backend.dto.PriorityRequest;
+import com.cliniq.backend.dto.QueuePositionResponse;
 import com.cliniq.backend.dto.WalkInRequest;
 import com.cliniq.backend.enums.AppointmentStatus;
 import com.cliniq.backend.enums.AvailabilityStatus;
 import com.cliniq.backend.enums.Priority;
+import com.cliniq.backend.enums.SlotStatus;
 import com.cliniq.backend.model.Appointment;
 import com.cliniq.backend.model.Department;
 import com.cliniq.backend.model.Patient;
 import com.cliniq.backend.model.Queue;
 import com.cliniq.backend.model.Staff;
+import com.cliniq.backend.model.Schedule;
 import com.cliniq.backend.repository.AppointmentRepository;
 import com.cliniq.backend.repository.DepartmentRepository;
 import com.cliniq.backend.repository.PatientRepository;
 import com.cliniq.backend.repository.QueueRepository;
 import com.cliniq.backend.repository.StaffRepository;
-import jakarta.transaction.Transactional;
+import com.cliniq.backend.repository.ScheduleRepository;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -30,6 +35,7 @@ import java.util.UUID;
 @Service
 public class OperationalService {
     private final AppointmentRepository appointments;
+    private final ScheduleRepository schedules;
     private final QueueRepository queues;
     private final StaffRepository staff;
     private final PatientRepository patients;
@@ -41,8 +47,10 @@ public class OperationalService {
     public OperationalService(AppointmentRepository appointments, QueueRepository queues,
                               StaffRepository staff, PatientRepository patients,
                               DepartmentRepository departments, AccessPolicy accessPolicy,
-                              NotificationService notificationService, AuditLogsService auditLogsService) {
+                              NotificationService notificationService, AuditLogsService auditLogsService,
+                              ScheduleRepository schedules) {
         this.appointments = appointments;
+        this.schedules = schedules;
         this.queues = queues;
         this.staff = staff;
         this.patients = patients;
@@ -116,10 +124,7 @@ public class OperationalService {
         List<Queue> waiting = queues.findByDepartmentAndAppointmentStatus(
                 current.getDepartment(), AppointmentStatus.WAITING);
         Queue next = waiting.stream()
-                .sorted((left, right) -> {
-                    int priority = right.getAppointment().getPriority().compareTo(left.getAppointment().getPriority());
-                    return priority != 0 ? priority : bookingMoment(left.getAppointment()).compareTo(bookingMoment(right.getAppointment()));
-                })
+                .sorted(QueueOrdering.NEXT_PATIENT)
                 .findFirst()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No patients are waiting."));
         Appointment appointment = next.getAppointment();
@@ -159,7 +164,15 @@ public class OperationalService {
 
     @Transactional
     public Appointment cancelPatient(Jwt jwt, UUID appointmentId) {
-        Appointment appointment = appointment(appointmentId);
+        AccessPolicy.subject(jwt);
+        // Match booking's slot-first lock order. Do not load/mutate the appointment before
+        // this lock: a concurrent cancellation may commit while we wait for the slot.
+        Schedule slot = appointments.findSlotIdByAppointmentId(appointmentId)
+                .map(id -> schedules.findByIdForUpdate(id)
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Slot not found.")))
+                .orElse(null);
+        Appointment appointment = appointments.findByIdForUpdate(appointmentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found."));
         if (!ownsAppointment(jwt, appointment)) {
             throw forbidden("You can only cancel your own appointments.");
         }
@@ -167,25 +180,48 @@ public class OperationalService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Only booked appointments can be cancelled.");
         }
         appointment.setAppointmentStatus(AppointmentStatus.CANCELLED);
-        Appointment saved = appointments.save(appointment);
+        Appointment saved = appointments.saveAndFlush(appointment);
+        if (slot != null && slot.getSlotStatus() == SlotStatus.BOOKED
+                && appointments.countOccupyingBySlotId(slot.getSlotId()) < slot.effectiveCapacity()) {
+            slot.setSlotStatus(SlotStatus.OPEN);
+            schedules.saveAndFlush(slot);
+        }
         auditLogsService.record("APPOINTMENT_CANCELLED", "Patient cancelled appointment", "Appointment", saved.getAppointmentId(), jwt);
         return saved;
     }
 
-    public Queue queuePosition(Jwt jwt, UUID appointmentId) {
+    @Transactional(readOnly = true)
+    public QueuePositionResponse queuePosition(Jwt jwt, UUID appointmentId) {
+        AccessPolicy.subject(jwt);
         Appointment appointment = appointment(appointmentId);
         if (!ownsAppointment(jwt, appointment)) {
             throw forbidden("You can only view your own queue position.");
         }
-        return queues.findByAppointment(appointment)
+        Queue queue = queues.findByAppointment(appointment)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "This appointment is not in a queue."));
+        AppointmentStatus status = appointment.getAppointmentStatus();
+        if (status != AppointmentStatus.WAITING) {
+            Integer wait = status == AppointmentStatus.INCONSULTATION || status == AppointmentStatus.COMPLETED
+                    || status == AppointmentStatus.CANCELLED || status == AppointmentStatus.NOSHOW ? 0 : null;
+            return new QueuePositionResponse(appointmentId, null, status, wait);
+        }
+        // Count those ahead rather than relying on the stored position or list membership:
+        // a concurrent call may remove this entry after we read its WAITING status.
+        int position = 1 + (int) queues.findByDepartmentAndAppointmentStatus(queue.getDepartment(), AppointmentStatus.WAITING)
+                .stream().filter(other -> QueueOrdering.NEXT_PATIENT.compare(other, queue) < 0).count();
+        double averageMinutes = averageConsultationMinutes(queue.getDepartment());
+        long inProgress = queues.countByDepartmentAndAppointmentStatus(queue.getDepartment(), AppointmentStatus.INCONSULTATION);
+        // Approximation: one average consultation per waiter ahead and per occupied consultation.
+        // This deliberately does not promise an exact ETA or model parallel doctor throughput.
+        int estimatedWait = (int) Math.min(Integer.MAX_VALUE,
+                Math.ceil((position - 1.0 + inProgress) * averageMinutes));
+        return new QueuePositionResponse(appointmentId, position, status, estimatedWait);
     }
 
-    // Queue order is booking time, falling back to check-in/creation for records without a bookedAt (e.g. walk-ins).
-    private static LocalDateTime bookingMoment(Appointment appointment) {
-        if (appointment.getBookedAt() != null) return appointment.getBookedAt();
-        if (appointment.getCheckInTime() != null) return appointment.getCheckInTime();
-        return appointment.getCreatedAt();
+    private double averageConsultationMinutes(Department department) {
+        Double averageSeconds = queues.averageCompletedConsultationSeconds(department);
+        // No valid departmental history: assume a 15-minute consultation.
+        return averageSeconds == null || averageSeconds <= 0 ? 15 : averageSeconds / 60;
     }
 
     private Queue createQueue(Appointment appointment, Department department) {

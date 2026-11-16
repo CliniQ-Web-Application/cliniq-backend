@@ -23,7 +23,7 @@ public class AuditLogsService {
     }
 
     public List<AuditLogs> getAllAuditLogs() {
-        return auditLogsRepository.findAll();
+        return auditLogsRepository.findAllNewestFirst();
     }
 
     public AuditLogs getAuditLogById(UUID id) {

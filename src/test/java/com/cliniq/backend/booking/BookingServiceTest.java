@@ -6,6 +6,7 @@ import com.cliniq.backend.model.*;
 import com.cliniq.backend.repository.*;
 import com.cliniq.backend.service.AccessPolicy;
 import com.cliniq.backend.service.BookingService;
+import com.cliniq.backend.service.NotificationService;
 import jakarta.persistence.LockModeType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -88,10 +89,28 @@ class BookingServiceTest {
         order.verify(policy).requirePatient(userId);
         order.verify(patients).findByAuthUserId(userId);
         order.verify(schedules).findByIdForUpdate(slot.getSlotId());
-        order.verify(appointments).countBySlot_SlotId(slot.getSlotId());
+        order.verify(appointments).countOccupyingBySlotId(slot.getSlotId());
         order.verify(appointments).saveAndFlush(any());
         order.verify(schedules).saveAndFlush(slot);
         verify(schedules, never()).findById(any());
+    }
+
+    @Test
+    void bookingNotificationTargetsTheSlotStaffRatherThanOnlyTheAppointment() {
+        NotificationService notifications = mock(NotificationService.class);
+        BookingService notifyingService = new BookingService(schedules, appointments, patients, policy, clock, notifications);
+        patient.setPatientName("Ada");
+
+        notifyingService.book(userId, slot.getSlotId());
+
+        verify(notifications).createNotification(argThat(notification ->
+                notification.getStaff() == slot.getStaff()
+                        && notification.getPatient() == null
+                        && notification.getAppointment().getStaff() == slot.getStaff()
+                        && notification.getAppointment().getPatient() == patient
+                        && "NEW_BOOKING".equals(notification.getType())
+                        && "A new appointment has been booked: Ada".equals(notification.getMessage())
+                        && Boolean.FALSE.equals(notification.getIsRead())));
     }
 
     @Test
@@ -157,7 +176,7 @@ class BookingServiceTest {
 
     @Test
     void rejectsAlreadyLinkedOpenSlot() {
-        when(appointments.countBySlot_SlotId(slot.getSlotId())).thenReturn(1L);
+        when(appointments.countOccupyingBySlotId(slot.getSlotId())).thenReturn(1L);
         assertEquals(HttpStatus.CONFLICT, assertThrows(ResponseStatusException.class,
                 () -> service.book(userId, slot.getSlotId())).getStatusCode());
         verify(appointments, never()).saveAndFlush(any());
@@ -190,6 +209,27 @@ class BookingServiceTest {
         verify(appointments).findBookingsByPatientId(patient.getPatientID());
         verify(appointments).findBookingByIdAndPatientId(otherBooking, patient.getPatientID());
         verify(appointments, never()).findById(any());
+    }
+
+    @Test
+    void listPreservesRepositoryReservationOrderRatherThanScheduledSlotOrder() {
+        Schedule laterSlot = validSlot();
+        laterSlot.setSlotDate(slot.getSlotDate().plusDays(1));
+        Appointment newest = new Appointment();
+        newest.setAppointmentId(UUID.randomUUID());
+        newest.setSlot(laterSlot);
+        newest.setStaff(laterSlot.getStaff());
+        newest.setBookedAt(LocalDateTime.of(2030, 1, 1, 9, 0));
+        Appointment older = new Appointment();
+        older.setAppointmentId(UUID.randomUUID());
+        older.setSlot(slot);
+        older.setStaff(slot.getStaff());
+        older.setBookedAt(newest.getBookedAt().minusDays(1));
+        when(appointments.findBookingsByPatientId(patient.getPatientID())).thenReturn(List.of(newest, older));
+
+        assertEquals(List.of(newest.getAppointmentId(), older.getAppointmentId()),
+                service.list(userId).stream().map(result -> result.appointmentId()).toList());
+        verify(appointments).findBookingsByPatientId(patient.getPatientID());
     }
 
     @Test
