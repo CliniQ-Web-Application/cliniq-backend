@@ -50,6 +50,19 @@ public class PatientController {
         return patientService.createPatient(profile(request, jwt), userId, jwt);
     }
 
+    @PutMapping("/me")
+    public Patient updateOwnProfile(@AuthenticationPrincipal Jwt jwt,
+                                    @Valid @RequestBody PatientProfileRequest request) {
+        UUID userId = AccessPolicy.subject(jwt);
+        accessPolicy.requirePatient(userId);
+        Patient existing = patientService.getOwnProfile(userId);
+        existing.setPatientName(required(request.patientName(), "First name"));
+        existing.setPatientSurname(required(request.patientSurname(), "Surname"));
+        existing.setNationalID(required(request.nationalID(), "National ID"));
+        existing.setPhone(required(request.phone(), "Phone"));
+        return patientService.savePatient(existing);
+    }
+
     private Patient profile(PatientProfileRequest request, Jwt jwt) {
         if (request == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Patient profile details are required");

@@ -54,6 +54,11 @@ public class PatientService {
         return saved;
     }
 
+    @Transactional
+    public Patient savePatient(Patient patient) {
+        return patientRepository.save(patient);
+    }
+
     public Patient createPatient(Patient patient, UUID authUserId) {
         return createPatient(patient, authUserId, null);
     }

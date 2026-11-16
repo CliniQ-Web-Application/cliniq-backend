@@ -1,14 +1,14 @@
 package com.cliniq.backend.service;
 
-import com.cliniq.backend.model.Appointment;
+import com.cliniq.backend.dto.NotificationResponse;
 import com.cliniq.backend.model.Notification;
-import com.cliniq.backend.model.Patient;
-import com.cliniq.backend.model.Staff;
 import com.cliniq.backend.repository.NotificationRepository;
-import com.cliniq.backend.repository.PatientRepository;
 import com.cliniq.backend.repository.StaffRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.UUID;
@@ -17,23 +17,47 @@ import java.util.UUID;
 public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final StaffRepository staffRepository;
-    private final PatientRepository patientRepository;
-    private final AuditLogsService auditLogsService;
 
-    public List<Notification> getMyNotifications(UUID authUserId) {
-        if (staffRepository.findByAuthUserId(authUserId).isPresent()) {
-            return notificationRepository.findByStaff_AuthUserIdOrderByCreatedAtDesc(authUserId);
-        }
-        return notificationRepository.findByPatient_AuthUserIdOrderByCreatedAtDesc(authUserId);
+    public NotificationService(NotificationRepository notificationRepository, StaffRepository staffRepository) {
+        this.notificationRepository = notificationRepository;
+        this.staffRepository = staffRepository;
     }
 
-    @Autowired
-    public NotificationService(PatientRepository patientRepository, StaffRepository staffRepository,
-                               NotificationRepository notificationRepository, AuditLogsService auditLogsService) {
-        this.patientRepository = patientRepository;
-        this.staffRepository = staffRepository;
-        this.notificationRepository = notificationRepository;
-        this.auditLogsService = auditLogsService;
+    @Transactional(readOnly = true)
+    public List<NotificationResponse> getMyNotifications(Jwt jwt) {
+        UUID authUserId = AccessPolicy.subject(jwt);
+        boolean isStaff = staffRepository.findByAuthUserId(authUserId).isPresent();
+        List<Notification> list = isStaff
+                ? notificationRepository.findByPatientIsNullAndAppointment_Staff_AuthUserIdOrderByCreatedAtDesc(authUserId)
+                : notificationRepository.findByPatient_AuthUserIdOrderByCreatedAtDesc(authUserId);
+        return list.stream().map(this::toResponse).toList();
+    }
+
+    @Transactional
+    public NotificationResponse markAsRead(Jwt jwt, UUID notificationId) {
+        UUID authUserId = AccessPolicy.subject(jwt);
+        Notification n = notificationRepository.findById(notificationId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Notification not found."));
+        if (!belongsToUser(authUserId, n)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You cannot modify this notification.");
+        }
+        n.setIsRead(true);
+        return toResponse(notificationRepository.save(n));
+    }
+
+    @Transactional
+    public void markAllAsRead(Jwt jwt) {
+        UUID authUserId = AccessPolicy.subject(jwt);
+        boolean isStaff = staffRepository.findByAuthUserId(authUserId).isPresent();
+        List<Notification> list = isStaff
+                ? notificationRepository.findByPatientIsNullAndAppointment_Staff_AuthUserIdOrderByCreatedAtDesc(authUserId)
+                : notificationRepository.findByPatient_AuthUserIdOrderByCreatedAtDesc(authUserId);
+        list.stream()
+                .filter(n -> !Boolean.TRUE.equals(n.getIsRead()))
+                .forEach(n -> {
+                    n.setIsRead(true);
+                    notificationRepository.save(n);
+                });
     }
 
     public List<Notification> getAllNotifications() {
@@ -41,13 +65,12 @@ public class NotificationService {
     }
 
     public Notification getNotificationById(UUID id) {
-        return notificationRepository.findById(id).orElseThrow(() -> new RuntimeException("Notification not found with id: " + id));
+        return notificationRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Notification not found with id: " + id));
     }
 
     public Notification createNotification(Notification notification) {
-        Notification saved = notificationRepository.save(notification);
-        if (auditLogsService != null) auditLogsService.record("NOTIFICATION_CREATED", "Notification created", "Notification", saved.getNotificationId(), null);
-        return saved;
+        return notificationRepository.save(notification);
     }
 
     public Notification updateNotification(UUID id, Notification details) {
@@ -58,31 +81,7 @@ public class NotificationService {
         notification.setCreatedAt(details.getCreatedAt());
         notification.setPatient(details.getPatient());
         notification.setAppointment(details.getAppointment());
-        Notification saved = notificationRepository.save(notification);
-        if (auditLogsService != null) auditLogsService.record("NOTIFICATION_UPDATED", "Notification updated", "Notification", saved.getNotificationId(), null);
-        return saved;
-    }
-
-    public void notifyStaff(Staff recipient, Appointment appointment, String type, String message) {
-        if (recipient == null) return;
-        Notification n = new Notification();
-        n.setStaff(recipient);
-        n.setAppointment(appointment);
-        n.setType(type);
-        n.setMessage(message);
-        n.setIsRead(false);
-        notificationRepository.save(n);
-    }
-
-    public void notifyPatient(Patient recipient, Appointment appointment, String type, String message) {
-        if (recipient == null) return;
-        Notification n = new Notification();
-        n.setPatient(recipient);
-        n.setAppointment(appointment);
-        n.setType(type);
-        n.setMessage(message);
-        n.setIsRead(false);
-        notificationRepository.save(n);
+        return notificationRepository.save(notification);
     }
 
     public void deleteNotification(UUID id) {
@@ -90,6 +89,25 @@ public class NotificationService {
             throw new RuntimeException("Notification not found with id: " + id);
         }
         notificationRepository.deleteById(id);
-        if (auditLogsService != null) auditLogsService.record("NOTIFICATION_DELETED", "Notification deleted", "Notification", id, null);
+    }
+
+    private boolean belongsToUser(UUID authUserId, Notification n) {
+        if (n.getPatient() != null) {
+            return authUserId.equals(n.getPatient().getAuthUserId());
+        }
+        return n.getAppointment() != null
+                && n.getAppointment().getStaff() != null
+                && authUserId.equals(n.getAppointment().getStaff().getAuthUserId());
+    }
+
+    private NotificationResponse toResponse(Notification n) {
+        return new NotificationResponse(
+                n.getNotificationId(),
+                n.getMessage(),
+                n.getType(),
+                Boolean.TRUE.equals(n.getIsRead()),
+                n.getCreatedAt(),
+                n.getAppointment() != null ? n.getAppointment().getAppointmentId() : null
+        );
     }
 }

@@ -1,5 +1,6 @@
 package com.cliniq.backend.repository;
 
+import com.cliniq.backend.enums.AppointmentStatus;
 import com.cliniq.backend.model.Appointment;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -13,22 +14,16 @@ import java.util.UUID;
 
 @Repository
 public interface AppointmentRepository extends JpaRepository<Appointment, UUID> {
-    @Query("""
-            select distinct a from Appointment a
-            join fetch a.staff st
-            left join fetch st.department
-            left join fetch a.patient
-            left join fetch a.slot
-            """)
-    List<Appointment> findAllForAnalytics();
-
     boolean existsBySlot_SlotId(UUID slotId);
 
     long countBySlot_SlotId(UUID slotId);
 
+    long countBySlot_SlotIdAndAppointmentStatusNot(UUID slotId, AppointmentStatus status);
+
     @Query("""
             select a.slot.slotId, count(a) from Appointment a
             where a.slot.slotId in :ids
+              and a.appointmentStatus <> com.cliniq.backend.enums.AppointmentStatus.CANCELLED
             group by a.slot.slotId
             """)
     List<Object[]> countBySlotIds(@Param("ids") Collection<UUID> ids);
@@ -47,4 +42,21 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
             where a.appointmentId = :id and a.patient.patientID = :patientId
             """)
     Optional<Appointment> findBookingByIdAndPatientId(@Param("id") UUID id, @Param("patientId") UUID patientId);
+
+    @Query("""
+            select a from Appointment a
+            join fetch a.patient p
+            left join fetch a.slot s
+            where a.staff.staffId = :staffId
+            order by a.createdAt asc
+            """)
+    List<Appointment> findByStaffIdOrderByCreatedAtAsc(@Param("staffId") UUID staffId);
+
+    @Query("""
+            select a from Appointment a
+            join fetch a.staff st
+            left join fetch st.department
+            left join fetch a.slot s
+            """)
+    List<Appointment> findAllForAnalytics();
 }
