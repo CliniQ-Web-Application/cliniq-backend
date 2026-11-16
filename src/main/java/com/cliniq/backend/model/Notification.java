@@ -35,6 +35,22 @@ public class Notification {
     @JoinColumn(name = "appointment_id")
     private Appointment appointment;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "staff_id")
+    private Staff staff;
+
+    @PrePersist
+    void onCreate() {
+        if (createdAt ==null) { createdAt = LocalDateTime.now(); }
+        if (isRead ==null) { isRead = false; }
+    }
+
+    public Staff getStaff() {
+        return staff;
+    }
+    public void setStaff(Staff staff) {
+        this.staff = staff;
+    }
     public UUID getNotificationId() { return notificationId; }
     public void setNotificationId(UUID notificationId) { this.notificationId = notificationId; }
     public String getMessage() { return message; }
