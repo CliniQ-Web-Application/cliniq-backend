@@ -1,7 +1,10 @@
 package com.cliniq.backend.service;
 
+import com.cliniq.backend.dto.ScheduleResponse;
 import com.cliniq.backend.model.Schedule;
 import com.cliniq.backend.enums.SlotStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import com.cliniq.backend.repository.AppointmentRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,17 +24,24 @@ public class ScheduleService {
 
     private final AppointmentRepository appointmentRepository;
     private final StaffRepository staffRepository;
+    private final AuditLogsService auditLogsService;
 
     public ScheduleService(ScheduleRepository scheduleRepository, AppointmentRepository appointmentRepository) {
-        this(scheduleRepository, appointmentRepository, null);
+        this(scheduleRepository, appointmentRepository, null, null);
     }
 
     @Autowired
     public ScheduleService(ScheduleRepository scheduleRepository, AppointmentRepository appointmentRepository,
-                           StaffRepository staffRepository) {
+                           StaffRepository staffRepository, AuditLogsService auditLogsService) {
         this.scheduleRepository = scheduleRepository;
         this.appointmentRepository = appointmentRepository;
         this.staffRepository = staffRepository;
+        this.auditLogsService = auditLogsService;
+    }
+
+    public ScheduleService(ScheduleRepository scheduleRepository, AppointmentRepository appointmentRepository,
+                           StaffRepository staffRepository) {
+        this(scheduleRepository, appointmentRepository, staffRepository, null);
     }
 
     @Transactional
@@ -47,7 +57,9 @@ public class ScheduleService {
         schedule.setSlotId(null);
         schedule.setSlotStatus(SlotStatus.OPEN);
         schedule.setStaff(staff);
-        return createSchedule(schedule);
+        Schedule saved = createSchedule(schedule);
+        auditLogsService.record("SCHEDULE_CREATED", "Doctor availability created", "Schedule", saved.getSlotId(), jwt);
+        return saved;
     }
 
     public List<Schedule> getAllSchedules() {
@@ -56,6 +68,16 @@ public class ScheduleService {
 
     public Schedule getScheduleById(UUID id) {
         return scheduleRepository.findById(id).orElseThrow(() -> new RuntimeException("Schedule not found with id: " + id));
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ScheduleResponse> getSchedules(Pageable pageable) {
+        return scheduleRepository.findAllForList(pageable).map(ScheduleResponse::from);
+    }
+
+    @Transactional(readOnly = true)
+    public ScheduleResponse getScheduleDto(UUID id) {
+        return ScheduleResponse.from(getScheduleById(id));
     }
 
     @Transactional
@@ -68,7 +90,17 @@ public class ScheduleService {
     }
 
     @Transactional
-    public Schedule updateSchedule(UUID id, Schedule details) {
+    public ScheduleResponse createScheduleDto(Jwt jwt, Schedule schedule) {
+        return ScheduleResponse.from(createForStaff(jwt, schedule));
+    }
+
+    @Transactional
+    public ScheduleResponse updateScheduleDto(UUID id, Schedule details, Jwt jwt) {
+        return ScheduleResponse.from(updateSchedule(id, details, jwt));
+    }
+
+    @Transactional
+    public Schedule updateSchedule(UUID id, Schedule details, Jwt jwt) {
         Schedule schedule = lockMutableSlot(id);
         rejectBookedStatus(details);
         schedule.setSlotDate(details.getSlotDate());
@@ -76,12 +108,25 @@ public class ScheduleService {
         schedule.setEndTime(details.getEndTime());
         schedule.setSlotStatus(details.getSlotStatus());
         schedule.setStaff(details.getStaff());
-        return scheduleRepository.save(schedule);
+        Schedule saved = scheduleRepository.save(schedule);
+        if (auditLogsService != null) auditLogsService.record("SCHEDULE_UPDATED", "Doctor availability updated", "Schedule", saved.getSlotId(), jwt);
+        return saved;
+    }
+
+    @Transactional
+    public Schedule updateSchedule(UUID id, Schedule details) {
+        return updateSchedule(id, details, null);
+    }
+
+    @Transactional
+    public void deleteSchedule(UUID id, Jwt jwt) {
+        scheduleRepository.delete(lockMutableSlot(id));
+        if (auditLogsService != null) auditLogsService.record("SCHEDULE_DELETED", "Doctor availability deleted", "Schedule", id, jwt);
     }
 
     @Transactional
     public void deleteSchedule(UUID id) {
-        scheduleRepository.delete(lockMutableSlot(id));
+        deleteSchedule(id, null);
     }
 
     private Schedule lockMutableSlot(UUID id) {

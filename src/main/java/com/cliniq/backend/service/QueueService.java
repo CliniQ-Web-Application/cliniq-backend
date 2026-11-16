@@ -1,8 +1,13 @@
 package com.cliniq.backend.service;
 
+import com.cliniq.backend.dto.QueueResponse;
 import com.cliniq.backend.model.Queue;
 import com.cliniq.backend.repository.QueueRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -10,9 +15,16 @@ import java.util.UUID;
 @Service
 public class QueueService {
     private final QueueRepository queueRepository;
+    private final AuditLogsService auditLogsService;
+
+    @Autowired
+    public QueueService(QueueRepository queueRepository, AuditLogsService auditLogsService) {
+        this.queueRepository = queueRepository;
+        this.auditLogsService = auditLogsService;
+    }
 
     public QueueService(QueueRepository queueRepository) {
-        this.queueRepository = queueRepository;
+        this(queueRepository, null);
     }
 
     public List<Queue> getAllQueues() {
@@ -23,8 +35,30 @@ public class QueueService {
         return queueRepository.findById(id).orElseThrow(() -> new RuntimeException("Queue not found with id: " + id));
     }
 
+    @Transactional(readOnly = true)
+    public Page<QueueResponse> getQueues(Pageable pageable) {
+        return queueRepository.findAllForList(pageable).map(QueueResponse::from);
+    }
+
+    @Transactional(readOnly = true)
+    public QueueResponse getQueueDto(UUID id) {
+        return QueueResponse.from(getQueueById(id));
+    }
+
+    @Transactional
+    public QueueResponse createQueueDto(Queue queue) {
+        return QueueResponse.from(createQueue(queue));
+    }
+
+    @Transactional
+    public QueueResponse updateQueueDto(UUID id, Queue details) {
+        return QueueResponse.from(updateQueue(id, details));
+    }
+
     public Queue createQueue(Queue queue) {
-        return queueRepository.save(queue);
+        Queue saved = queueRepository.save(queue);
+        if (auditLogsService != null) auditLogsService.record("QUEUE_CREATED", "Queue entry created", "Queue", saved.getQueueId(), null);
+        return saved;
     }
 
     public Queue updateQueue(UUID id, Queue details) {
@@ -34,7 +68,9 @@ public class QueueService {
         queue.setTimeStamp(details.getTimeStamp());
         queue.setAppointment(details.getAppointment());
         queue.setDepartment(details.getDepartment());
-        return queueRepository.save(queue);
+        Queue saved = queueRepository.save(queue);
+        if (auditLogsService != null) auditLogsService.record("QUEUE_UPDATED", "Queue entry updated", "Queue", saved.getQueueId(), null);
+        return saved;
     }
 
     public void deleteQueue(UUID id) {
@@ -42,5 +78,6 @@ public class QueueService {
             throw new RuntimeException("Queue not found with id: " + id);
         }
         queueRepository.deleteById(id);
+        if (auditLogsService != null) auditLogsService.record("QUEUE_DELETED", "Queue entry deleted", "Queue", id, null);
     }
 }

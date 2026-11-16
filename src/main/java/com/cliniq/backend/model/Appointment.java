@@ -34,6 +34,9 @@ public class Appointment {
     @Column
     private LocalDateTime bookedAt;
 
+    @Column(name = "appointment_time")
+    private java.time.LocalTime appointmentTime;
+
     @Column
     private LocalDateTime calledTime;
 
@@ -115,6 +118,9 @@ public class Appointment {
     public LocalDateTime getBookedAt() {
         return bookedAt;
     }
+
+    public java.time.LocalTime getAppointmentTime() { return appointmentTime; }
+    public void setAppointmentTime(java.time.LocalTime appointmentTime) { this.appointmentTime = appointmentTime; }
 
     public void setBookedAt(LocalDateTime bookedAt) {
         this.bookedAt = bookedAt;

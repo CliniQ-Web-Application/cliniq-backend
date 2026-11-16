@@ -1,11 +1,15 @@
 package com.cliniq.backend.service;
 
+import com.cliniq.backend.dto.AppointmentResponse;
 import com.cliniq.backend.model.Appointment;
 import com.cliniq.backend.enums.AppointmentStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import com.cliniq.backend.repository.AppointmentRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -14,9 +18,16 @@ import java.util.UUID;
 @Service
 public class AppointmentService {
     private final AppointmentRepository appointmentRepository;
+    private final AuditLogsService auditLogsService;
+
+    @Autowired
+    public AppointmentService(AppointmentRepository appointmentRepository, AuditLogsService auditLogsService) {
+        this.appointmentRepository = appointmentRepository;
+        this.auditLogsService = auditLogsService;
+    }
 
     public AppointmentService(AppointmentRepository appointmentRepository) {
-        this.appointmentRepository = appointmentRepository;
+        this(appointmentRepository, null);
     }
 
     public List<Appointment> getAllAppointments() {
@@ -27,13 +38,30 @@ public class AppointmentService {
         return appointmentRepository.findById(id).orElseThrow(() -> new RuntimeException("Appointment not found with id: " + id));
     }
 
+    @Transactional(readOnly = true)
+    public Page<AppointmentResponse> getAppointments(Pageable pageable) {
+        return appointmentRepository.findAllForList(pageable).map(AppointmentResponse::from);
+    }
+
+    @Transactional(readOnly = true)
+    public AppointmentResponse getAppointmentDto(UUID id) {
+        return AppointmentResponse.from(getAppointmentById(id));
+    }
+
     @Transactional
     public Appointment createAppointment(Appointment appointment) {
         if (appointment.getAppointmentId() != null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Appointment ID must not be supplied");
         }
         rejectBookingMutation(appointment);
-        return appointmentRepository.save(appointment);
+        Appointment saved = appointmentRepository.save(appointment);
+        if (auditLogsService != null) auditLogsService.record("APPOINTMENT_CREATED", "Appointment created", "Appointment", saved.getAppointmentId(), null);
+        return saved;
+    }
+
+    @Transactional
+    public AppointmentResponse createAppointmentDto(Appointment appointment) {
+        return AppointmentResponse.from(createAppointment(appointment));
     }
 
     @Transactional
@@ -51,7 +79,14 @@ public class AppointmentService {
         appointment.setCalledBy(details.getCalledBy());
         appointment.setPatient(details.getPatient());
         appointment.setStaff(details.getStaff());
-        return appointmentRepository.save(appointment);
+        Appointment saved = appointmentRepository.save(appointment);
+        if (auditLogsService != null) auditLogsService.record("APPOINTMENT_UPDATED", "Appointment updated", "Appointment", saved.getAppointmentId(), null);
+        return saved;
+    }
+
+    @Transactional
+    public AppointmentResponse updateAppointmentDto(UUID id, Appointment details) {
+        return AppointmentResponse.from(updateAppointment(id, details));
     }
 
     @Transactional
@@ -61,6 +96,7 @@ public class AppointmentService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Slot-linked bookings require a booking lifecycle operation");
         }
         appointmentRepository.delete(appointment);
+        if (auditLogsService != null) auditLogsService.record("APPOINTMENT_DELETED", "Appointment deleted", "Appointment", id, null);
     }
 
     private void rejectBookingMutation(Appointment appointment) {

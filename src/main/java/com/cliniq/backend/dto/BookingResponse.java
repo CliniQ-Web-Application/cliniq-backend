@@ -8,4 +8,12 @@ import java.util.UUID;
 
 public record BookingResponse(UUID appointmentId, AppointmentStatus appointmentStatus, UUID slotId,
                               LocalDate slotDate, LocalTime startTime, LocalTime endTime,
-                              String departmentName, String doctorName, LocalDateTime bookedAt) { }
+                              LocalTime appointmentTime,
+                              String departmentName, String doctorName, LocalDateTime bookedAt) {
+    public BookingResponse(UUID appointmentId, AppointmentStatus appointmentStatus, UUID slotId,
+                           LocalDate slotDate, LocalTime startTime, LocalTime endTime,
+                           String departmentName, String doctorName, LocalDateTime bookedAt) {
+        this(appointmentId, appointmentStatus, slotId, slotDate, startTime, endTime, null,
+                departmentName, doctorName, bookedAt);
+    }
+}

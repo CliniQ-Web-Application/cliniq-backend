@@ -1,7 +1,10 @@
 package com.cliniq.backend.service;
 
+import com.cliniq.backend.dto.AppointmentResponse;
 import com.cliniq.backend.dto.AvailabilityUpdateRequest;
 import com.cliniq.backend.dto.PriorityRequest;
+import com.cliniq.backend.dto.QueueResponse;
+import com.cliniq.backend.dto.StaffResponse;
 import com.cliniq.backend.dto.WalkInRequest;
 import com.cliniq.backend.enums.AppointmentStatus;
 import com.cliniq.backend.enums.AvailabilityStatus;
@@ -36,10 +39,12 @@ public class OperationalService {
     private final DepartmentRepository departments;
     private final AccessPolicy accessPolicy;
     private final NotificationService notificationService;
+    private final AuditLogsService auditLogsService;
 
     public OperationalService(AppointmentRepository appointments, QueueRepository queues,
                               StaffRepository staff, PatientRepository patients,
-                              DepartmentRepository departments, AccessPolicy accessPolicy, NotificationService notificationService) {
+                              DepartmentRepository departments, AccessPolicy accessPolicy,
+                              NotificationService notificationService, AuditLogsService auditLogsService) {
         this.appointments = appointments;
         this.queues = queues;
         this.staff = staff;
@@ -47,13 +52,16 @@ public class OperationalService {
         this.departments = departments;
         this.accessPolicy = accessPolicy;
         this.notificationService = notificationService;
+        this.auditLogsService = auditLogsService;
     }
 
     @Transactional
     public Staff updateAvailability(Jwt jwt, AvailabilityUpdateRequest request) {
         Staff current = requireStaff(jwt);
         current.setAvailabilityStatus(request.status());
-        return staff.save(current);
+        Staff saved = staff.save(current);
+        auditLogsService.record("STAFF_AVAILABILITY_UPDATED", request.status().name(), "Staff", saved.getStaffId(), jwt);
+        return saved;
     }
 
     @Transactional
@@ -69,7 +77,9 @@ public class OperationalService {
         appointment.setAppointmentStatus(AppointmentStatus.WAITING);
         appointment.setCheckInTime(LocalDateTime.now());
         createQueue(appointment, appointment.getStaff().getDepartment());
-        return appointments.save(appointment);
+        Appointment saved = appointments.save(appointment);
+        auditLogsService.record("APPOINTMENT_CHECKED_IN", "Appointment checked in", "Appointment", saved.getAppointmentId(), jwt);
+        return saved;
     }
 
     @Transactional
@@ -87,6 +97,7 @@ public class OperationalService {
         appointment.setCheckInTime(LocalDateTime.now());
         Appointment saved = appointments.save(appointment);
         createQueue(saved, department);
+        auditLogsService.record("WALK_IN_REGISTERED", "Walk-in patient added to queue", "Appointment", saved.getAppointmentId(), jwt);
         return saved;
     }
 
@@ -97,7 +108,9 @@ public class OperationalService {
         Appointment appointment = queue.getAppointment();
         appointment.setPriority(Priority.URGENT);
         appointments.save(appointment);
-        return queues.save(queue);
+        Queue saved = queues.save(queue);
+        auditLogsService.record("QUEUE_PRIORITISED", request.reason(), "Queue", saved.getQueueId(), jwt);
+        return saved;
     }
 
     @Transactional
@@ -125,7 +138,9 @@ public class OperationalService {
         notification.setCreatedAt(LocalDateTime.now());
         notificationService.createNotification(notification);
 
-        return appointments.save(appointment);
+        Appointment saved = appointments.save(appointment);
+        auditLogsService.record("QUEUE_PATIENT_CALLED", "Next patient called", "Appointment", saved.getAppointmentId(), jwt);
+        return saved;
     }
 
     @Transactional
@@ -140,7 +155,9 @@ public class OperationalService {
         }
         appointment.setAppointmentStatus(AppointmentStatus.COMPLETED);
         appointment.setCompletedTime(LocalDateTime.now());
-        return appointments.save(appointment);
+        Appointment saved = appointments.save(appointment);
+        auditLogsService.record("CONSULTATION_COMPLETED", "Consultation completed", "Appointment", saved.getAppointmentId(), jwt);
+        return saved;
     }
 
     @Transactional
@@ -153,7 +170,9 @@ public class OperationalService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Only booked appointments can be cancelled.");
         }
         appointment.setAppointmentStatus(AppointmentStatus.CANCELLED);
-        return appointments.save(appointment);
+        Appointment saved = appointments.save(appointment);
+        auditLogsService.record("APPOINTMENT_CANCELLED", "Patient cancelled appointment", "Appointment", saved.getAppointmentId(), jwt);
+        return saved;
     }
 
     public Queue queuePosition(Jwt jwt, UUID appointmentId) {
@@ -163,6 +182,46 @@ public class OperationalService {
         }
         return queues.findByAppointment(appointment)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "This appointment is not in a queue."));
+    }
+
+    @Transactional
+    public StaffResponse updateAvailabilityDto(Jwt jwt, AvailabilityUpdateRequest request) {
+        return StaffResponse.from(updateAvailability(jwt, request));
+    }
+
+    @Transactional
+    public AppointmentResponse checkInDto(Jwt jwt, UUID appointmentId) {
+        return AppointmentResponse.from(checkIn(jwt, appointmentId));
+    }
+
+    @Transactional
+    public AppointmentResponse registerWalkInDto(Jwt jwt, WalkInRequest request) {
+        return AppointmentResponse.from(registerWalkIn(jwt, request));
+    }
+
+    @Transactional
+    public QueueResponse prioritiseDto(Jwt jwt, UUID queueId, PriorityRequest request) {
+        return QueueResponse.from(prioritise(jwt, queueId, request));
+    }
+
+    @Transactional
+    public AppointmentResponse callNextDto(Jwt jwt) {
+        return AppointmentResponse.from(callNext(jwt));
+    }
+
+    @Transactional
+    public AppointmentResponse completeDto(Jwt jwt, UUID appointmentId) {
+        return AppointmentResponse.from(complete(jwt, appointmentId));
+    }
+
+    @Transactional
+    public AppointmentResponse cancelPatientDto(Jwt jwt, UUID appointmentId) {
+        return AppointmentResponse.from(cancelPatient(jwt, appointmentId));
+    }
+
+    @Transactional
+    public QueueResponse queuePositionDto(Jwt jwt, UUID appointmentId) {
+        return QueueResponse.from(queuePosition(jwt, appointmentId));
     }
 
     // Queue order is booking time, falling back to check-in/creation for records without a bookedAt (e.g. walk-ins).

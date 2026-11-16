@@ -1,5 +1,6 @@
 package com.cliniq.backend.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 
 import java.util.UUID;
@@ -11,6 +12,7 @@ public class Patient {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID patientID;
 
+    @JsonIgnore
     @Column (name = "auth_user_id", unique = true, nullable = false)
     private UUID authUserId;
 
