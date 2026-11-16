@@ -1,13 +1,15 @@
 package com.cliniq.backend.repository;
 
 import com.cliniq.backend.model.Appointment;
-import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -63,6 +65,13 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
             left join fetch a.slot
             """)
     List<Appointment> findAllForAnalytics();
+
+    @Query(value = """
+            select distinct a from Appointment a
+            join fetch a.staff st left join fetch st.department
+            left join fetch a.patient left join fetch a.slot
+            """, countQuery = "select count(a) from Appointment a")
+    Page<Appointment> findAllForList(Pageable pageable);
 
     boolean existsBySlot_SlotId(UUID slotId);
 

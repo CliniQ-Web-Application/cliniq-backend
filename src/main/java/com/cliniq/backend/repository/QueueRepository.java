@@ -1,6 +1,8 @@
 package com.cliniq.backend.repository;
 
 import com.cliniq.backend.model.Queue;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -31,6 +33,14 @@ public interface QueueRepository extends JpaRepository<Queue, UUID> {
     List<Object[]> findAdminDepartmentsByAppointmentIds(@Param("appointmentIds") Collection<UUID> appointmentIds);
 
     Optional<Queue> findByAppointment(Appointment appointment);
+
+    @Query(value = """
+            select distinct q from Queue q
+            join fetch q.appointment a left join fetch a.patient
+            left join fetch a.staff st left join fetch st.department
+            left join fetch a.slot left join fetch q.department
+            """, countQuery = "select count(q) from Queue q")
+    Page<Queue> findAllForList(Pageable pageable);
 
     @Query("""
             select avg(timestampdiff(nanosecond, a.calledTime, a.completedTime)) / 1000000000.0

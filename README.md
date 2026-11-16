@@ -130,7 +130,7 @@ New schedule/admin/broadcast controllers return safe `{message}` bodies for serv
 
 ## Required PostgreSQL deployment migration
 
-The application does not currently use a migration runner. The SQL below is **manual**, not automatically applied. Hibernate schema update is not a substitute: it does not reliably drop the old check-in NOT NULL constraint.
+Migrations in `src/main/resources/db/migration/` run **automatically at startup** through Flyway (`spring.flyway.enabled=true`, default location `classpath:db/migration`, `baseline-on-migrate=true`, baseline version `20261116`). The older scripts were previously applied manually and only ALTER existing tables, so the baseline marks them as applied; on a fresh database Hibernate's `ddl-auto=update` creates the base tables and Flyway still applies the newer versioned scripts. **All future schema changes belong in versioned SQL files**, not in `ddl-auto`.
 
 1. Back up the database and stop all application writers. Confirm the target database/schema and inspect the migration in a disposable PostgreSQL database first.
 2. Apply `src/main/resources/db/migration/V20261023_01__patient_booking_slots.sql` using your approved deployment tooling, with the application schema in `search_path`. It runs atomically, locks both affected tables, adds the nullable slot FK and unique constraint, and explicitly drops `appointment.check_in_time` NOT NULL. The script is idempotent and leaves legacy rows intact. Multiple null slot IDs remain legal. Invalid existing links or duplicate nonnull slot IDs cause failure rather than deleting/reassigning data.
@@ -139,7 +139,7 @@ The application does not currently use a migration runner. The SQL below is **ma
 2c. Apply `V20261116_01__broadcast_notification_message.sql` to widen `notification.message` from the legacy 255-character limit to PostgreSQL `text`, preserving existing records. This small idempotent migration is necessary to store a 500-character broadcast plus doctor/window context without truncation. No other schema change or dependency is introduced for PP-03/PP-12/AP-03/AP-08.
 3. Verify both constraints exist and check-in accepts null; deploy the new application with the updated security/profile code and explicit clinic timezone, then resume writers. Never run old writers alongside the new booking lifecycle.
 
-No database migration was executed during implementation. No production database is required for the focused tests.
+List endpoints (`/api/appointments`, `/api/queues`, `/api/staff`, `/api/patients`, `/api/departments`, `/api/schedules`, `/api/audit-logs`) accept `page`, `size` and `sort` and return a stable envelope: `{ content, page, size, totalElements, totalPages, first, last }`. Responses are DTOs; internal fields such as `authUserId` are never serialized. `DELETE /api/staff/{id}` now soft-deletes (sets `active=false`, marks the account UNAVAILABLE, frees the unique email) and bans the matching Supabase Auth user; the row is retained so audit logs, appointments and schedules keep their foreign-key target.
 
 ## Offline validation
 

@@ -6,6 +6,8 @@ import com.cliniq.backend.enums.SlotStatus;
 import com.cliniq.backend.enums.StaffRole;
 import com.cliniq.backend.model.Schedule;
 import com.cliniq.backend.model.Staff;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import com.cliniq.backend.repository.AppointmentRepository;
 import com.cliniq.backend.repository.ScheduleRepository;
 import com.cliniq.backend.repository.StaffRepository;
@@ -77,6 +79,16 @@ public class ScheduleService {
                 new ResponseStatusException(HttpStatus.NOT_FOUND, "Schedule not found"));
     }
 
+    @Transactional(readOnly = true)
+    public Page<ScheduleResponse> getSchedules(Pageable pageable) {
+        return scheduleRepository.findAllForList(pageable).map(ScheduleResponse::from);
+    }
+
+    @Transactional(readOnly = true)
+    public ScheduleResponse getScheduleDto(UUID id) {
+        return ScheduleResponse.from(getScheduleById(id));
+    }
+
     @Transactional
     public Schedule createSchedule(Schedule schedule) {
         if (schedule.getSlotId() != null) throw badRequest("Slot ID must not be supplied");
@@ -84,6 +96,16 @@ public class ScheduleService {
         requireDoctor(schedule.getStaff());
         validateWindow(schedule);
         return scheduleRepository.save(schedule);
+    }
+
+    @Transactional
+    public ScheduleResponse createScheduleDto(Jwt jwt, Schedule schedule) {
+        return ScheduleResponse.from(createForStaff(jwt, schedule));
+    }
+
+    @Transactional
+    public ScheduleResponse updateScheduleDto(UUID id, Schedule details, Jwt jwt) {
+        return ScheduleResponse.from(updateSchedule(id, details, jwt));
     }
 
     @Transactional

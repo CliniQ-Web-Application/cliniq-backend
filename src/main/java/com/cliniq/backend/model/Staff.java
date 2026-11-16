@@ -2,6 +2,7 @@ package com.cliniq.backend.model;
 
 import com.cliniq.backend.enums.AvailabilityStatus;
 import com.cliniq.backend.enums.StaffRole;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.util.UUID;
 
@@ -13,6 +14,7 @@ public class Staff {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID staffId;
 
+    @JsonIgnore
     @Column (name = "auth_user_id", unique = true, nullable = false)
     private UUID authUserId;
 

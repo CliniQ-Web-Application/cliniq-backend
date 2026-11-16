@@ -1,15 +1,18 @@
 package com.cliniq.backend.controller;
 
+import com.cliniq.backend.dto.DepartmentResponse;
+import com.cliniq.backend.dto.PageResponse;
 import com.cliniq.backend.model.Department;
 import com.cliniq.backend.service.DepartmentService;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
-import java.util.UUID;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/departments")
@@ -21,23 +24,28 @@ public class DepartmentController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Department>> getAll() {
-        return ResponseEntity.ok(departmentService.getAllDepartments());
+    public ResponseEntity<PageResponse<DepartmentResponse>> getAll(
+            @PageableDefault(size = 200, sort = "name") Pageable pageable) {
+        return ResponseEntity.ok(PageResponse.from(departmentService.getDepartments(pageable)));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Department> getById(@PathVariable UUID id) {
-        return ResponseEntity.ok(departmentService.getDepartmentById(id));
+    public ResponseEntity<DepartmentResponse> getById(@PathVariable UUID id) {
+        return ResponseEntity.ok(departmentService.getDepartmentDto(id));
     }
 
     @PostMapping
-    public ResponseEntity<Department> create(@RequestBody Department department, @AuthenticationPrincipal Jwt jwt) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(departmentService.createDepartment(department, jwt));
+    public ResponseEntity<DepartmentResponse> create(@RequestBody Department department,
+                                                     @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(departmentService.createDepartmentDto(department, jwt));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Department> update(@PathVariable UUID id, @RequestBody Department department, @AuthenticationPrincipal Jwt jwt) {
-        return ResponseEntity.ok(departmentService.updateDepartment(id, department, jwt));
+    public ResponseEntity<DepartmentResponse> update(@PathVariable UUID id,
+                                                     @RequestBody Department department,
+                                                     @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(departmentService.updateDepartmentDto(id, department, jwt));
     }
 
     @DeleteMapping("/{id}")
