@@ -83,8 +83,8 @@ public class PatientService {
         return saved;
     }
 
-    public Patient createPatient(Patient patient, UUID authUserId) {
-        return createPatient(patient, authUserId, null);
+    public void createPatient(Patient patient, UUID authUserId) {
+        createPatient(patient, authUserId, null);
     }
 
     @Transactional
