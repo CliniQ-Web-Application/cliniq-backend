@@ -157,6 +157,20 @@ class BookingSecurityTest {
     }
 
     @Test
+    void broadcastFilterAllowsOnlyActiveDoctorsAndAdmins() throws Exception {
+        Route route = new Route(HttpMethod.POST, "/api/schedules/" + USER_ID + "/broadcast");
+        assertBlocked(route, false, HttpStatus.UNAUTHORIZED);
+        assertBlocked(route, true, HttpStatus.FORBIDDEN);
+        for (StaffRole role : StaffRole.values()) {
+            staffProfile(role, false);
+            assertBlocked(route, true, HttpStatus.FORBIDDEN);
+            staffProfile(role, true);
+            if (role == StaffRole.DOCTOR || role == StaffRole.ADMIN) assertAllowed(route);
+            else assertBlocked(route, true, HttpStatus.FORBIDDEN);
+        }
+    }
+
+    @Test
     void requirePatientAllowsIdentityWithoutStaffProfile() {
         assertDoesNotThrow(() -> accessPolicy.requirePatient(USER_ID));
         verify(staff).findByAuthUserId(USER_ID);
@@ -225,9 +239,17 @@ class BookingSecurityTest {
     }
 
     private static Stream<Route> adminRoutes() {
-        return Stream.concat(Stream.of("/api/staff", "/api/departments")
+        return Stream.concat(Stream.concat(Stream.of("/api/staff", "/api/departments")
                 .flatMap(BookingSecurityTest::mutationRoutes),
-                Stream.of(new Route(HttpMethod.POST, "/api/staff/register")));
+                Stream.of(new Route(HttpMethod.POST, "/api/staff/register"))), Stream.of(
+                new Route(HttpMethod.GET, "/api/admin/schedules"),
+                new Route(HttpMethod.POST, "/api/admin/schedules"),
+                new Route(HttpMethod.PUT, "/api/admin/schedules/" + USER_ID),
+                new Route(HttpMethod.DELETE, "/api/admin/schedules/" + USER_ID),
+                new Route(HttpMethod.GET, "/api/admin/appointments"),
+                new Route(HttpMethod.GET, "/api/admin/appointments/" + USER_ID),
+                new Route(HttpMethod.PATCH, "/api/admin/appointments/" + USER_ID + "/cancel"),
+                new Route(HttpMethod.GET, "/api/admin/future-endpoint")));
     }
 
     private static Stream<Route> staffRoutes() {
@@ -306,16 +328,24 @@ class BookingSecurityTest {
     @RestController
     static class FakeRoutes {
         @RequestMapping(path = {"/api/appointments", "/api/schedules", "/api/staff", "/api/departments",
-                "/api/patients", "/api/bookings"}, method = {GET, POST})
+                "/api/patients", "/api/bookings", "/api/admin/schedules", "/api/admin/appointments",
+                                "/api/admin/future-endpoint"}, method = {GET, POST})
         String collection() {
             return HANDLED;
         }
 
         @RequestMapping(path = {"/api/appointments/{id}", "/api/schedules/{id}", "/api/staff/{id}",
-                "/api/departments/{id}", "/api/patients/{id}"}, method = {GET, PUT, DELETE})
+                "/api/departments/{id}", "/api/patients/{id}", "/api/admin/schedules/{id}",
+                                "/api/admin/appointments/{id}"}, method = {GET, PUT, DELETE})
         String item() {
             return HANDLED;
         }
+
+        @RequestMapping(path = "/api/admin/appointments/{id}/cancel", method = PATCH)
+        String cancelAdmin() { return HANDLED; }
+
+        @RequestMapping(path = "/api/schedules/{id}/broadcast", method = POST)
+        String broadcast() { return HANDLED; }
 
         @RequestMapping(path = "/api/staff/register", method = POST)
         String register() {

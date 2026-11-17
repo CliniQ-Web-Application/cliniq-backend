@@ -43,6 +43,21 @@ public class AccessPolicy {
                 .isPresent();
     }
 
+    public boolean isDoctorOrAdmin(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()
+                || !(authentication.getPrincipal() instanceof Jwt jwt)) return false;
+        UUID userId;
+        try {
+            userId = subject(jwt);
+        } catch (ResponseStatusException invalidSubject) {
+            return false;
+        }
+        return staff.findByAuthUserId(userId)
+                .filter(profile -> Boolean.TRUE.equals(profile.getActive()))
+                .filter(profile -> profile.getStaffRole() == StaffRole.DOCTOR || profile.getStaffRole() == StaffRole.ADMIN)
+                .isPresent();
+    }
+
     public UUID requireAdmin(Jwt jwt) {
         UUID userId = subject(jwt);
         staff.findByAuthUserId(userId)

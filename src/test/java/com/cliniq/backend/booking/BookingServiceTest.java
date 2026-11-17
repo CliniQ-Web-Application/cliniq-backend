@@ -64,6 +64,15 @@ class BookingServiceTest {
         return result;
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(AvailabilityStatus.class)
+    void currentAvailabilityIsExposedButDoesNotBlockFutureBooking(AvailabilityStatus status) {
+        slot.getStaff().setAvailabilityStatus(status);
+        when(schedules.findBookingCandidates(SlotStatus.OPEN, LocalDate.of(2030, 1, 1))).thenReturn(List.of(slot));
+        assertEquals(status, service.availability(userId).getFirst().staff().availabilityStatus());
+        assertEquals(AppointmentStatus.BOOKED, service.book(userId, slot.getSlotId()).appointmentStatus());
+    }
+
     @Test
     void reservesUsingAuthenticatedPatientAndLockedSlot() {
         UUID appointmentId = UUID.randomUUID();

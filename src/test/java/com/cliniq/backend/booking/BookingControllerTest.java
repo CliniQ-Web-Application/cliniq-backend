@@ -75,12 +75,12 @@ class BookingControllerTest {
     void availabilityJsonHasOnlyAgreedDisplayFields() {
         var availability = new BookingAvailability(UUID.randomUUID(), LocalDate.of(2030, 1, 1),
                 LocalTime.of(10, 0), LocalTime.of(10, 30), SlotStatus.OPEN,
-                new BookingAvailability.Doctor(UUID.randomUUID(), "Ada", "Doctor", StaffRole.DOCTOR, true,
+                new BookingAvailability.Doctor(UUID.randomUUID(), "Ada", "Doctor", StaffRole.DOCTOR, AvailabilityStatus.AVAILABLE, true,
                         new BookingAvailability.Department(UUID.randomUUID(), "General care")),
                 10, 3);
         var json = mapper.valueToTree(availability);
         assertEquals(Set.of("slotId", "slotDate", "startTime", "endTime", "slotStatus", "staff", "capacity", "bookedCount"), json.propertyNames());
-        assertEquals(Set.of("staffId", "firstName", "lastName", "staffRole", "active", "department"),
+        assertEquals(Set.of("staffId", "firstName", "lastName", "staffRole", "availabilityStatus", "active", "department"),
                 json.get("staff").propertyNames());
         assertEquals(Set.of("departmentId", "name"), json.get("staff").get("department").propertyNames());
     }
