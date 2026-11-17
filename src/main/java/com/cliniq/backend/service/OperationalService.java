@@ -109,6 +109,41 @@ public class OperationalService {
     }
 
     @Transactional
+    public AppointmentResponse markNoShowDto(Jwt jwt, UUID appointmentId) {
+        requireStaff(jwt);
+        Appointment appointment = appointment(appointmentId);
+        appointment.setAppointmentStatus(AppointmentStatus.NOSHOW);
+        Appointment saved = appointments.save(appointment);
+        return AppointmentResponse.from(saved);
+    }
+
+    @Transactional
+    public AppointmentResponse cancelByStaffDto(Jwt jwt, UUID appointmentId) {
+        requireStaff(jwt);
+        Appointment appointment = appointment(appointmentId);
+        appointment.setAppointmentStatus(AppointmentStatus.CANCELLED);
+        Appointment saved = appointments.save(appointment);
+        return AppointmentResponse.from(saved);
+    }
+
+    @Transactional
+    public void broadcastDelay(Jwt jwt, String delayMessage) {
+        Staff current = requireStaff(jwt);
+
+        List<Queue> waiting = queues.findByDepartmentAndAppointmentStatus(
+                current.getDepartment(), AppointmentStatus.WAITING);
+
+        for (Queue q : waiting) {
+            notificationService.notifyPatient(
+                    q.getAppointment().getPatient(),
+                    q.getAppointment(),
+                    "DELAY_ALERT",
+                    delayMessage
+            );
+        }
+    }
+
+    @Transactional
     public Queue prioritise(Jwt jwt, UUID queueId, PriorityRequest request) {
         requireStaff(jwt);
         Queue queue = queue(queueId);
