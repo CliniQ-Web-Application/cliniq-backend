@@ -12,6 +12,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -35,4 +36,18 @@ public interface ScheduleRepository extends JpaRepository<Schedule, UUID> {
     @Query(value = "select s from Schedule s join fetch s.staff st left join fetch st.department",
            countQuery = "select count(s) from Schedule s")
     Page<Schedule> findAllForList(Pageable pageable);
+
+    /** Counts other windows for the same doctor/date that overlap [start, end). */
+    @Query("""
+            select count(s) from Schedule s
+            where s.staff.staffId = :staffId
+              and s.slotDate = :slotDate
+              and s.startTime < :endTime and s.endTime > :startTime
+              and (cast(:excludeId as java.util.UUID) is null or s.slotId <> :excludeId)
+            """)
+    long countOverlapping(@Param("staffId") UUID staffId,
+                          @Param("slotDate") LocalDate slotDate,
+                          @Param("startTime") LocalTime startTime,
+                          @Param("endTime") LocalTime endTime,
+                          @Param("excludeId") UUID excludeId);
 }

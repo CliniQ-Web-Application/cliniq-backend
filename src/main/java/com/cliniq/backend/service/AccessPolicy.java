@@ -68,6 +68,13 @@ public class AccessPolicy {
         return userId;
     }
 
+    /**
+     * Direct controller calls use this and surface 401 for a missing/malformed
+     * subject (an authentication failure). The security filter's authorization
+     * checks deliberately catch that condition and return false, so the same
+     * token receives 403 on protected routes. Both behaviours are covered by
+     * the booking controller and security test suites.
+     */
     public static UUID subject(Jwt jwt) {
         String sub = jwt == null ? null : jwt.getSubject();
         if (sub == null || !sub.matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")) {

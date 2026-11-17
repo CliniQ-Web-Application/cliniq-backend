@@ -2,7 +2,7 @@ package com.cliniq.backend.operational;
 
 import com.cliniq.backend.controller.OperationalController;
 import com.cliniq.backend.dto.AppointmentResponse;
-import com.cliniq.backend.dto.QueueResponse;
+import com.cliniq.backend.dto.QueuePositionResponse;
 import com.cliniq.backend.dto.WalkInRequest;
 import com.cliniq.backend.enums.AppointmentStatus;
 import com.cliniq.backend.enums.AvailabilityStatus;
@@ -17,6 +17,7 @@ import com.cliniq.backend.repository.DepartmentRepository;
 import com.cliniq.backend.repository.PatientRepository;
 import com.cliniq.backend.repository.QueueRepository;
 import com.cliniq.backend.repository.StaffRepository;
+import com.cliniq.backend.repository.ScheduleRepository;
 import com.cliniq.backend.service.AccessPolicy;
 import com.cliniq.backend.service.AuditLogsService;
 import com.cliniq.backend.service.NotificationService;
@@ -40,6 +41,7 @@ class OperationalFlowIntegrationTest {
     private final AppointmentRepository appointments = mock(AppointmentRepository.class);
     private final QueueRepository queues = mock(QueueRepository.class);
     private final StaffRepository staff = mock(StaffRepository.class);
+    private final ScheduleRepository schedules = mock(ScheduleRepository.class);
     private final PatientRepository patients = mock(PatientRepository.class);
     private final DepartmentRepository departments = mock(DepartmentRepository.class);
     private final AccessPolicy accessPolicy = mock(AccessPolicy.class);
@@ -91,7 +93,7 @@ class OperationalFlowIntegrationTest {
         when(queues.countByDepartmentAndAppointmentStatus(any(), any())).thenReturn(0L);
 
         var service = new OperationalService(appointments, queues, staff, patients, departments,
-                accessPolicy, notificationService, auditLogsService);
+                accessPolicy, notificationService, auditLogsService, schedules);
         controller = new OperationalController(service);
     }
 
@@ -150,11 +152,11 @@ class OperationalFlowIntegrationTest {
         when(appointments.findById(waiting.getAppointmentId())).thenReturn(Optional.of(waiting));
         when(queues.findByAppointment(waiting)).thenReturn(Optional.of(entry));
 
-        QueueResponse response = controller.queuePosition(jwt(patientAuthId), waiting.getAppointmentId());
+        QueuePositionResponse response = controller.queuePosition(jwt(patientAuthId), waiting.getAppointmentId());
 
         ObjectNode json = mapper.valueToTree(response);
-        assertEquals(3, json.get("position").asInt());
-        assertEquals(AppointmentStatus.WAITING.name(), json.get("appointment").get("appointmentStatus").asText());
-        assertFalse(json.get("appointment").get("staff").has("authUserId"));
+        assertEquals(waiting.getAppointmentId().toString(), json.get("appointmentId").asText());
+        assertEquals(AppointmentStatus.WAITING.name(), json.get("queueStatus").asText());
+        assertFalse(json.toString().contains("authUserId"));
     }
 }

@@ -56,6 +56,20 @@ public class PatientService {
     }
 
     @Transactional
+    public Patient updateOwnProfile(UUID authUserId, Patient patientDetails, Jwt jwt) {
+        Patient patient = getOwnProfile(authUserId);
+        patient.setPatientName(patientDetails.getPatientName());
+        patient.setPatientSurname(patientDetails.getPatientSurname());
+        patient.setNationalID(patientDetails.getNationalID());
+        patient.setPhone(patientDetails.getPhone());
+        Patient saved = patientRepository.save(patient);
+        if (auditLogsService != null) {
+            auditLogsService.record("PATIENT_PROFILE_UPDATED", "Patient profile updated", "Patient", saved.getPatientID(), jwt);
+        }
+        return saved;
+    }
+
+    @Transactional
     public Patient createPatient(Patient patient, UUID authUserId, Jwt jwt) {
         if (patient.getPatientID() != null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Patient ID must not be supplied");

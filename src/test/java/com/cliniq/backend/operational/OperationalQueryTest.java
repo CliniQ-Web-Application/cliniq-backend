@@ -41,6 +41,8 @@ class OperationalQueryTest {
                 for (Class<?> repository : new Class<?>[]{AppointmentRepository.class, AuditLogsRepository.class, QueueRepository.class, ScheduleRepository.class}) {
                     Arrays.stream(repository.getDeclaredMethods())
                             .filter(method -> method.isAnnotationPresent(Query.class))
+                            // Native SQL is validated by PostgreSQL/Hibernate at runtime, not by the HQL parser.
+                            .filter(method -> !method.getAnnotation(Query.class).nativeQuery())
                             .forEach(method -> assertDoesNotThrow(() -> {
                                 String hql = method.getAnnotation(Query.class).value();
                                 if (method.getReturnType() == Double.class) {

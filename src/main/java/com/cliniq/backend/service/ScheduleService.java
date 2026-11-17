@@ -2,6 +2,7 @@ package com.cliniq.backend.service;
 
 import com.cliniq.backend.dto.AdminScheduleRequest;
 import com.cliniq.backend.dto.AdminScheduleResponse;
+import com.cliniq.backend.dto.ScheduleResponse;
 import com.cliniq.backend.enums.SlotStatus;
 import com.cliniq.backend.enums.StaffRole;
 import com.cliniq.backend.model.Schedule;
@@ -45,7 +46,10 @@ public class ScheduleService {
 
     public ScheduleService(ScheduleRepository schedules, AppointmentRepository appointments,
                            StaffRepository staff, AuditLogsService audit) {
-        this(schedules, appointments, staff, audit, new AccessPolicy(staff), Clock.system(ZoneId.of("Africa/Gaborone")));
+        this(schedules, appointments, staff, audit, new AccessPolicy(staff),
+                Clock.system(ZoneId.of(System.getProperty(
+                        "cliniq.booking.zone-id",
+                        System.getProperty("CLINIQ_BOOKING_ZONE_ID", "Africa/Gaborone")))));
     }
 
     public ScheduleService(ScheduleRepository schedules, AppointmentRepository appointments, StaffRepository staff) {
@@ -95,6 +99,7 @@ public class ScheduleService {
         rejectBookedStatus(schedule);
         requireDoctor(schedule.getStaff());
         validateWindow(schedule);
+        rejectOverlap(schedule, null);
         return scheduleRepository.save(schedule);
     }
 
@@ -115,7 +120,8 @@ public class ScheduleService {
         requireOwnerOrAdmin(actor, slot);
         if (details == null) throw badRequest("Schedule is required");
         // Generic HTTP edits cannot move a window to another doctor; use the admin DTO API.
-        if (details.getStaff() != null && !slot.getStaff().getStaffId().equals(details.getStaff().getStaffId())) {
+        if (details.getStaff() != null
+                && (slot.getStaff() == null || !slot.getStaff().getStaffId().equals(details.getStaff().getStaffId()))) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Use the admin schedule API to reassign a doctor");
         }
         details.setStaff(slot.getStaff());
@@ -123,6 +129,7 @@ public class ScheduleService {
         rejectBookedStatus(details);
         requireDoctor(details.getStaff());
         validateWindow(details);
+        rejectOverlap(details, id);
         apply(slot, details);
         Schedule saved = scheduleRepository.save(slot);
         audit("SCHEDULE_UPDATED", id, jwt);
@@ -144,6 +151,7 @@ public class ScheduleService {
         Schedule slot = lockMutableSlot(id);
         rejectBookedStatus(details);
         apply(slot, details);
+        rejectOverlap(slot, id);
         return scheduleRepository.save(slot);
     }
 
@@ -160,6 +168,7 @@ public class ScheduleService {
     public AdminScheduleResponse createAdmin(Jwt jwt, AdminScheduleRequest request) {
         accessPolicy.requireAdmin(jwt);
         Schedule slot = adminDetails(request);
+        rejectOverlap(slot, null);
         Schedule saved = scheduleRepository.save(slot);
         audit("SCHEDULE_CREATED", saved.getSlotId(), jwt);
         return AdminScheduleResponse.from(saved);
@@ -170,6 +179,7 @@ public class ScheduleService {
         accessPolicy.requireAdmin(jwt);
         Schedule slot = lockMutableSlot(id);
         apply(slot, adminDetails(request));
+        rejectOverlap(slot, id);
         Schedule saved = scheduleRepository.save(slot);
         audit("SCHEDULE_UPDATED", id, jwt);
         return AdminScheduleResponse.from(saved);
@@ -206,6 +216,19 @@ public class ScheduleService {
             throw badRequest(field + " must be a whole number between 1 and " + maximum);
         }
         return number.intValue();
+    }
+
+    /** Prevents two OPEN windows for the same doctor/date from being bookable at the same time. */
+    private void rejectOverlap(Schedule slot, UUID excludeId) {
+        if (slot == null || slot.getStaff() == null || slot.getSlotDate() == null
+                || slot.getStartTime() == null || slot.getEndTime() == null) return;
+        long overlaps = scheduleRepository.countOverlapping(
+                slot.getStaff().getStaffId(), slot.getSlotDate(),
+                slot.getStartTime(), slot.getEndTime(), excludeId);
+        if (overlaps > 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "This doctor already has an overlapping window on that date");
+        }
     }
 
     private void validateWindow(Schedule slot) {

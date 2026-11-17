@@ -3,6 +3,7 @@ package com.cliniq.backend.service;
 import com.cliniq.backend.dto.AppointmentResponse;
 import com.cliniq.backend.dto.AvailabilityUpdateRequest;
 import com.cliniq.backend.dto.PriorityRequest;
+import com.cliniq.backend.dto.QueuePositionResponse;
 import com.cliniq.backend.dto.QueueResponse;
 import com.cliniq.backend.dto.StaffResponse;
 import com.cliniq.backend.dto.WalkInRequest;
@@ -203,6 +204,13 @@ public class OperationalService {
         return saved;
     }
 
+    /** Departmental average consultation length in minutes; 15-minute fallback. */
+    private double averageConsultationMinutes(Department department) {
+        if (department == null) return 15;
+        Double averageSeconds = queues.averageCompletedConsultationSeconds(department);
+        return averageSeconds == null || averageSeconds <= 0 ? 15 : averageSeconds / 60;
+    }
+
     @Transactional(readOnly = true)
     public QueuePositionResponse queuePosition(Jwt jwt, UUID appointmentId) {
         AccessPolicy.subject(jwt);
@@ -266,9 +274,9 @@ public class OperationalService {
         return AppointmentResponse.from(cancelPatient(jwt, appointmentId));
     }
 
-    @Transactional
-    public QueueResponse queuePositionDto(Jwt jwt, UUID appointmentId) {
-        return QueueResponse.from(queuePosition(jwt, appointmentId));
+    @Transactional(readOnly = true)
+    public QueuePositionResponse queuePositionDto(Jwt jwt, UUID appointmentId) {
+        return queuePosition(jwt, appointmentId);
     }
 
     // Queue order is booking time, falling back to check-in/creation for records without a bookedAt (e.g. walk-ins).

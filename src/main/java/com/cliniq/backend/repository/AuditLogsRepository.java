@@ -15,4 +15,10 @@ public interface AuditLogsRepository extends JpaRepository<AuditLogs, UUID> {
     @Query(value = "select a from AuditLogs a left join fetch a.staff",
            countQuery = "select count(a) from AuditLogs a")
     Page<AuditLogs> findAllForList(Pageable pageable);
+
+    @Query("""
+            select a from AuditLogs a
+            order by a.createdAt desc nulls last, a.logId desc
+            """)
+    List<AuditLogs> findAllNewestFirst();
 }

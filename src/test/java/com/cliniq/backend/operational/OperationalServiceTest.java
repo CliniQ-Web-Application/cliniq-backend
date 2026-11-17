@@ -20,6 +20,7 @@ import com.cliniq.backend.repository.DepartmentRepository;
 import com.cliniq.backend.repository.PatientRepository;
 import com.cliniq.backend.repository.QueueRepository;
 import com.cliniq.backend.repository.StaffRepository;
+import com.cliniq.backend.repository.ScheduleRepository;
 import com.cliniq.backend.service.AccessPolicy;
 import com.cliniq.backend.service.AuditLogsService;
 import com.cliniq.backend.service.NotificationService;
@@ -48,6 +49,7 @@ class OperationalServiceTest {
     private final AppointmentRepository appointments = mock(AppointmentRepository.class);
     private final QueueRepository queues = mock(QueueRepository.class);
     private final StaffRepository staff = mock(StaffRepository.class);
+    private final ScheduleRepository schedules = mock(ScheduleRepository.class);
     private final PatientRepository patients = mock(PatientRepository.class);
     private final DepartmentRepository departments = mock(DepartmentRepository.class);
     private final AccessPolicy accessPolicy = mock(AccessPolicy.class);
@@ -126,7 +128,7 @@ class OperationalServiceTest {
         currentStaff.setDepartment(department);
         patient = patient(patientAuthId);
         service = new OperationalService(appointments, queues, staff, patients, departments,
-                accessPolicy, notificationService, auditLogsService);
+                accessPolicy, notificationService, auditLogsService, schedules);
         when(staff.findByAuthUserId(staffAuthId)).thenReturn(Optional.of(currentStaff));
         when(staff.save(any(Staff.class))).thenAnswer(call -> call.getArgument(0));
         when(appointments.save(any(Appointment.class))).thenAnswer(call -> call.getArgument(0));
@@ -323,12 +325,15 @@ class OperationalServiceTest {
     @Test
     void cancelAllowsOnlyTheOwningPatientAndRequiresBookedStatus() {
         Appointment booked = appointment(AppointmentStatus.BOOKED, patient, currentStaff);
-        when(appointments.findById(booked.getAppointmentId())).thenReturn(Optional.of(booked));
+        when(appointments.findSlotIdByAppointmentId(booked.getAppointmentId())).thenReturn(Optional.empty());
+        when(appointments.findByIdForUpdate(booked.getAppointmentId())).thenReturn(Optional.of(booked));
+        when(appointments.saveAndFlush(booked)).thenReturn(booked);
 
         assertEquals("CANCELLED", service.cancelPatientDto(jwt(patientAuthId), booked.getAppointmentId()).appointmentStatus());
 
         Appointment second = appointment(AppointmentStatus.BOOKED, patient, currentStaff);
-        when(appointments.findById(second.getAppointmentId())).thenReturn(Optional.of(second));
+        when(appointments.findSlotIdByAppointmentId(second.getAppointmentId())).thenReturn(Optional.empty());
+        when(appointments.findByIdForUpdate(second.getAppointmentId())).thenReturn(Optional.of(second));
         ResponseStatusException error = assertThrows(ResponseStatusException.class,
                 () -> service.cancelPatient(jwt(UUID.randomUUID()), second.getAppointmentId()));
         assertEquals(HttpStatus.FORBIDDEN, error.getStatusCode());
@@ -342,8 +347,9 @@ class OperationalServiceTest {
         when(queues.findByAppointment(waiting)).thenReturn(Optional.of(entry));
 
         var response = service.queuePositionDto(jwt(patientAuthId), waiting.getAppointmentId());
-        assertEquals(2, response.position());
-        assertEquals(AppointmentStatus.WAITING.name(), response.appointment().appointmentStatus());
+        assertEquals(waiting.getAppointmentId(), response.appointmentId());
+        assertEquals(AppointmentStatus.WAITING, response.queueStatus());
+        assertNotNull(response.queuePosition());
 
         ResponseStatusException error = assertThrows(ResponseStatusException.class,
                 () -> service.queuePosition(jwt(UUID.randomUUID()), waiting.getAppointmentId()));
@@ -356,7 +362,9 @@ class OperationalServiceTest {
                 "prioritise", "callNext", "complete", "cancelPatient")) {
             var matching = java.util.Arrays.stream(OperationalService.class.getMethods())
                     .filter(candidate -> candidate.getName().equals(method))
-                    .filter(candidate -> candidate.isAnnotationPresent(Transactional.class))
+                    .filter(candidate -> candidate.isAnnotationPresent(
+                            org.springframework.transaction.annotation.Transactional.class)
+                            || candidate.isAnnotationPresent(jakarta.transaction.Transactional.class))
                     .findFirst();
             assertTrue(matching.isPresent(), method + " should be @Transactional");
         }

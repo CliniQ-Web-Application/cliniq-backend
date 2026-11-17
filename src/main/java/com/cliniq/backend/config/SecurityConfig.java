@@ -32,7 +32,6 @@ public class SecurityConfig {
                         .requestMatchers("/api/appointments/walk-in", "/api/appointments/*/complete",
                                 "/api/queues/**", "/api/staff/me/**")
                         .access((authentication, context) -> new AuthorizationDecision(accessPolicy.isStaff(authentication.get(), false)))
-                        .requestMatchers("/api/appointments/*/check-in").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/departments", "/api/departments/**").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/staff", "/api/staff/**")
                         .access((authentication, context) -> new AuthorizationDecision(accessPolicy.isStaff(authentication.get(), false)))

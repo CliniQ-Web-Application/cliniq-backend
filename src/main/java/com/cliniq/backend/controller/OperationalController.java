@@ -2,6 +2,7 @@ package com.cliniq.backend.controller;
 
 import com.cliniq.backend.dto.AppointmentResponse;
 import com.cliniq.backend.dto.PriorityRequest;
+import com.cliniq.backend.dto.QueuePositionResponse;
 import com.cliniq.backend.dto.QueueResponse;
 import com.cliniq.backend.dto.WalkInRequest;
 import com.cliniq.backend.service.OperationalService;
@@ -42,7 +43,7 @@ public class OperationalController {
     }
 
     @GetMapping("/appointments/{id}/queue-position")
-    public QueueResponse queuePosition(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+    public QueuePositionResponse queuePosition(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
         return operationalService.queuePositionDto(jwt, id);
     }
 

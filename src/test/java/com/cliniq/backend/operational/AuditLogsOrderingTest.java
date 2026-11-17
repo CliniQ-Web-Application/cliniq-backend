@@ -6,6 +6,9 @@ import com.cliniq.backend.repository.AuditLogsRepository;
 import com.cliniq.backend.repository.StaffRepository;
 import com.cliniq.backend.service.AuditLogsService;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.LocalDateTime;
@@ -34,17 +37,19 @@ class AuditLogsOrderingTest {
     @Test
     void auditLogsEndpointPreservesNewestFirstTiesAndNullsLast() throws Exception {
         List<AuditLogs> ordered = entries();
-        when(logs.findAllNewestFirst()).thenReturn(ordered);
-        var mvc = MockMvcBuilders.standaloneSetup(new AuditLogsController(service)).build();
+        when(logs.findAllForList(any(Pageable.class))).thenReturn(new PageImpl<>(ordered));
+        var mvc = MockMvcBuilders.standaloneSetup(new AuditLogsController(service))
+                .setCustomArgumentResolvers(new PageableHandlerMethodArgumentResolver())
+                .build();
 
         mvc.perform(get("/api/audit-logs"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(4))
-                .andExpect(jsonPath("$[0].logId").value(ordered.get(0).getLogId().toString()))
-                .andExpect(jsonPath("$[1].logId").value(ordered.get(1).getLogId().toString()))
-                .andExpect(jsonPath("$[2].logId").value(ordered.get(2).getLogId().toString()))
-                .andExpect(jsonPath("$[3].logId").value(ordered.get(3).getLogId().toString()));
-        verify(logs).findAllNewestFirst();
+                .andExpect(jsonPath("$.content.length()").value(4))
+                .andExpect(jsonPath("$.content[0].logId").value(ordered.get(0).getLogId().toString()))
+                .andExpect(jsonPath("$.content[1].logId").value(ordered.get(1).getLogId().toString()))
+                .andExpect(jsonPath("$.content[2].logId").value(ordered.get(2).getLogId().toString()))
+                .andExpect(jsonPath("$.content[3].logId").value(ordered.get(3).getLogId().toString()));
+        verify(logs).findAllForList(any(Pageable.class));
         verifyNoMoreInteractions(logs);
     }
 

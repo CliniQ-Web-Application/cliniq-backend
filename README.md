@@ -128,28 +128,32 @@ No admin no-show or rescheduling action is added in this scope.
 
 New schedule/admin/broadcast controllers return safe `{message}` bodies for service errors and malformed JSON; security-layer and query-binding errors may use Spring's default error format.
 
-## Required PostgreSQL deployment migration
+## Database migrations (Flyway)
 
-Migrations in `src/main/resources/db/migration/` run **automatically at startup** through Flyway (`spring.flyway.enabled=true`, default location `classpath:db/migration`, `baseline-on-migrate=true`, baseline version `20261116`). The older scripts were previously applied manually and only ALTER existing tables, so the baseline marks them as applied; on a fresh database Hibernate's `ddl-auto=update` creates the base tables and Flyway still applies the newer versioned scripts. **All future schema changes belong in versioned SQL files**, not in `ddl-auto`.
+Migrations in `src/main/resources/db/migration/` run **automatically at startup** through Flyway (`spring.flyway.enabled=true`, default location `classpath:db/migration`, `baseline-on-migrate=true`, baseline version `20261116`). The older scripts were previously applied manually and only ALTER existing tables, so the baseline marks them as applied; on a fresh database Hibernate's `ddl-auto=update` creates the base tables. **All future schema changes belong in versioned SQL files**, not in `ddl-auto`. Flyway versions must be unique — do not reuse a version number, or startup fails with "Found more than one migration with version …".
 
-1. Back up the database and stop all application writers. Confirm the target database/schema and inspect the migration in a disposable PostgreSQL database first.
-2. Apply `src/main/resources/db/migration/V20261023_01__patient_booking_slots.sql` using your approved deployment tooling, with the application schema in `search_path`. It runs atomically, locks both affected tables, adds the nullable slot FK and unique constraint, and explicitly drops `appointment.check_in_time` NOT NULL. The script is idempotent and leaves legacy rows intact. Multiple null slot IDs remain legal. Invalid existing links or duplicate nonnull slot IDs cause failure rather than deleting/reassigning data.
-2a. For multi-patient windows, also apply `V20261107_01__window_capacity.sql` (drops the slot uniqueness on `appointment.slot_id`, adds `schedule.capacity` with a `capacity >= 1` check). It is idempotent and also leaves existing rows intact.
-2b. Apply `V20261115_02__appointment_times_and_audit_ids.sql` to add the selected appointment time and allow audit entries to reference UUID entities. It is idempotent.
-2c. Apply `V20261116_01__broadcast_notification_message.sql` to widen `notification.message` from the legacy 255-character limit to PostgreSQL `text`, preserving existing records. This small idempotent migration is necessary to store a 500-character broadcast plus doctor/window context without truncation. No other schema change or dependency is introduced for PP-03/PP-12/AP-03/AP-08.
-3. Verify both constraints exist and check-in accepts null; deploy the new application with the updated security/profile code and explicit clinic timezone, then resume writers. Never run old writers alongside the new booking lifecycle.
+The active versioned scripts are:
+- `V20261023_01__patient_booking_slots.sql` — nullable slot FK, drops the old `check_in_time` NOT NULL.
+- `V20261106_01__patient_auth_identity.sql` — patient auth identity columns.
+- `V20261107_01__window_capacity.sql` — multi-patient windows and `schedule.capacity`.
+- `V20261111_01__notification_recipients.sql` — notification staff recipient + `is_read` default.
+- `V20261115_02__appointment_times_and_audit_ids.sql` — selected appointment time, wider audit ids.
+- `V20261116_01__realtime_publication.sql` — adds clinic tables to Supabase Realtime (used by the frontend to invalidate its cache instead of polling).
+- `V20261117_01__broadcast_notification_message.sql` — widens `notification.message` to PostgreSQL `text` so a 500-character broadcast plus doctor/window context is not truncated.
+
+Back up the database and inspect each migration in a disposable PostgreSQL database before deploying. Older scripts are idempotent, but invalid existing links or duplicate non-null slot IDs fail rather than deleting/reassigning data.
 
 List endpoints (`/api/appointments`, `/api/queues`, `/api/staff`, `/api/patients`, `/api/departments`, `/api/schedules`, `/api/audit-logs`) accept `page`, `size` and `sort` and return a stable envelope: `{ content, page, size, totalElements, totalPages, first, last }`. Responses are DTOs; internal fields such as `authUserId` are never serialized. `DELETE /api/staff/{id}` now soft-deletes (sets `active=false`, marks the account UNAVAILABLE, frees the unique email) and bans the matching Supabase Auth user; the row is retained so audit logs, appointments and schedules keep their foreign-key target.
 
 ## Offline validation
 
-Use JDK 21 and cached Maven/dependencies:
+Use JDK 21 and cached Maven/dependencies. `mvnw` is not executable in this repository, so invoke it through `bash`:
 
 ```sh
-./mvnw -o '-Dtest=*Test,*Tests,!BackendApplicationTests' test
+bash mvnw -o '-Dtest=*Test,*Tests,!BackendApplicationTests' test
 ```
 
-These focused tests do not start Spring Boot, load deployment configuration, access a backend service, or contact a database. They verify booking ownership/eligibility, locks, transaction metadata, write ordering/failures, DTO input/output, controller responses, profile ownership, HTTP authorization boundaries, and legacy mutation guards. They do not prove PostgreSQL concurrent locking/rollback behavior: run a separate disposable-database integration check before deployment (two simultaneous bookings must produce exactly one booking and one 409; a forced second-write failure must persist neither write). Operational tests also cover cancellation/rebooking, double-cancel protection, cancellation transaction interception, live queue progression, priority/tie ordering, departmental estimates, snapshot ownership, and read-only behavior. Repository JPQL is parsed against the current Hibernate metadata with JDBC metadata access disabled; no database connection is opened. No dependency was added solely for testing. Admin/broadcast regressions also cover exact JSON contracts and HTTP status codes through the production security chain, active-admin enforcement, owner-only broadcast/self-schedule mutations, strict integer validation, clinic-zone/DST schedule validation, any-appointment history guards, safe distinct-patient notifications, transaction interception on save/audit failures, shared admin cancellation, and database-paged appointment filter/count query parsing. `BackendApplicationTests` is intentionally excluded because it starts the environment-dependent full Spring Boot context.
+These focused tests do not start Spring Boot, load deployment configuration, access a backend service, or contact a database. They verify booking ownership/eligibility, locks, transaction metadata, write ordering/failures, DTO input/output, controller responses, profile ownership, HTTP authorization boundaries, and legacy mutation guards. They do not prove PostgreSQL concurrent locking/rollback behavior: run a separate disposable-database integration check before deployment (two simultaneous bookings must produce exactly one booking and one 409; a forced second-write failure must persist neither write). Operational tests also cover cancellation/rebooking, double-cancel protection, cancellation transaction interception, live queue progression, priority/tie ordering, departmental estimates, snapshot ownership, and read-only behavior. HQL is parsed against the current Hibernate metadata with JDBC metadata access disabled; native-SQL analytics queries are validated by PostgreSQL at runtime instead. No dependency was added solely for testing. Admin/broadcast regressions cover exact JSON contracts and HTTP status codes through the production security chain, active-admin enforcement, owner-only broadcast/self-schedule mutations, strict integer validation, clinic-zone/DST schedule validation, any-appointment history guards, safe distinct-patient notifications, transaction interception on save/audit failures, shared admin cancellation, and database-paged appointment filter/count query parsing. `BackendApplicationTests` is intentionally excluded because it starts the environment-dependent full Spring Boot context (it requires `JWT_ISSUER_URI`, `DATABASE_URL` and a reachable database).
 
 ## Check-in QR codes
 
